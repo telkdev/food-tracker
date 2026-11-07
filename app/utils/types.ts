@@ -28,6 +28,7 @@ export interface Day {
   goal: { kcal: number, p: number | null, f: number | null, c: number | null }
   totals: Totals
   remaining_kcal: number
+  estimate_kcal?: number
   meals: Record<Meal, { totals: Totals, entries: Entry[] }>
 }
 
@@ -77,3 +78,7 @@ export interface Pickable {
   lastGrams?: number
   origin: 'my_products' | 'open_food_facts' | 'recent' | 'manual'
 }
+
+export interface SavedMealItem { name: string, grams: number, product_id: string | null, per100: Per100, source: EntrySource }
+export interface SavedMeal { id: string, name: string, default_meal: Meal | null, items: SavedMealItem[], kcal: number }
+export interface Preference { key: string, text: string }

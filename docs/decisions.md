@@ -37,3 +37,12 @@ Checked against current docs on 2026-11-07.
 - The handoff's "product reads are much more generous than search" is no longer true (15 vs 10 per minute). All calls come from one Render IP: cache lookups in `products`, debounce search, search My products first.
 - User-Agent `FoodTracker/0.1 (email)` required. Develop against staging `world.openfoodfacts.net` (basic auth `off:off`).
 - Licences: ODbL (database), DbCL (contents), CC BY-SA (images). Show attribution.
+
+## Memory for Claude (2026-11-07)
+
+- Claude's own claude.ai memory is not used for diary facts: it is unstructured and does not keep grams. The server keeps them instead.
+- `preferences` (key → free-text rule) and `saved_meals` (name + items with grams and a per-100 g snapshot). MCP `get_context` returns rules, usual meals, the 20 most-logged products of the last 60 days and today's totals; the server instructions tell Claude to call it first.
+- Seeded rules: everything is weighed ready to eat (grains, pasta, meat, fish cooked); oil, butter and sauces are separate entries, and Claude asks about them.
+- `log_meal` logs saved items by product id when the product still exists (current values) and falls back to the snapshot otherwise.
+- Oil/sauce toggles in the add sheet log generic values as their own entries (note "with <food>"), so they show up and can be edited like anything else.
+- `get_day` returns `estimate_kcal`; Today shows the share of kcal that comes from guesses.

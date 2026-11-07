@@ -1,4 +1,4 @@
-import type { Day, Entry, Meal, Pickable, Product, Range, Settings } from '~/utils/types'
+import type { Day, Entry, Meal, Pickable, Product, Range, SavedMeal, Settings } from '~/utils/types'
 import { addDays } from '~/utils/format'
 
 /** Settings incl. the server's idea of "today" in Europe/Warsaw. */
@@ -74,4 +74,32 @@ export async function restoreEntry(e: Entry) {
   }
   catch { /* fall through */ }
   return $fetch<{ created: Entry[], day: Day }>('/api/entries', { method: 'POST', body: body({ per100: e.per100, source: e.source }) })
+}
+
+/** "My usual" meals, cached for the session; refresh after saving or deleting one. */
+export function useSavedMeals() {
+  const items = useState<SavedMeal[]>('saved-meals', () => [])
+  const loaded = useState<boolean>('saved-meals-loaded', () => false)
+  async function load(force = false) {
+    if (loaded.value && !force) return items.value
+    try {
+      items.value = await $fetch<SavedMeal[]>('/api/meals')
+      loaded.value = true
+    }
+    catch { /* convenience only */ }
+    return items.value
+  }
+  async function log(id: string, meal: Meal, date: string) {
+    return $fetch<{ created: Entry[], day: Day }>(`/api/meals/${id}/log`, { method: 'POST', body: { meal, date } })
+  }
+  async function saveFromDiary(name: string, date: string, meal: Meal) {
+    const m = await $fetch<SavedMeal>('/api/meals', { method: 'POST', body: { name, from: { date, meal } } })
+    await load(true)
+    return m
+  }
+  async function remove(id: string) {
+    await $fetch(`/api/meals/${id}`, { method: 'DELETE' })
+    await load(true)
+  }
+  return { items, load, log, saveFromDiary, remove }
 }

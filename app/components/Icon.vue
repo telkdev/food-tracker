@@ -17,6 +17,7 @@ const paths: Record<string, string> = {
   edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
   trash: 'M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
   check: 'M5 12l5 5 9-10',
+  bookmark: 'M7 4h10v16l-5-4-5 4z',
   globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z',
   pencil: 'M4 20h4L19 9l-4-4L4 16z',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',

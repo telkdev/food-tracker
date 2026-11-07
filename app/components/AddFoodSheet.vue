@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import type { Day, Entry, Meal, Pickable, ProductSource, SearchResult } from '~/utils/types'
+import type { Day, Entry, Meal, Pickable, ProductSource, SavedMeal, SearchResult } from '~/utils/types'
+import { OILS, SAUCES } from '~/utils/extras'
 import { errMsg, fmtDate, parseDecimal } from '~/utils/format'
 
 const props = defineProps<{ open: boolean, date: string, meal: Meal, initialPick?: Pickable | null }>()
 const emit = defineEmits<{ close: [], added: [day: Day, created: Entry[], name: string] }>()
 const { t, n, locale } = useT()
 const { items: recent } = useRecent()
+const usual = useSavedMeals()
 
 type Step = 'search' | 'amount' | 'manual' | 'scan'
 const step = ref<Step>('search')
@@ -78,6 +80,11 @@ const recentMatches = computed(() => {
   return recent.value.filter(r => r.name.toLowerCase().includes(s) && !(r.product_id && mineIds.has(r.product_id))).slice(0, 5)
 })
 
+const usualMatches = computed(() => {
+  const s = query.value.toLowerCase()
+  return s.length < 2 ? usual.items.value : usual.items.value.filter(m => m.name.toLowerCase().includes(s))
+})
+
 const lastGramsFor = (productId: string | null | undefined) => productId ? recent.value.find(r => r.product_id === productId)?.lastGrams : undefined
 
 function fromResult(r: SearchResult): Pickable | null {
@@ -100,6 +107,7 @@ async function pick(p: Pickable) {
   picked.value = p
   grams.value = p.lastGrams ?? 100
   error.value = ''
+  resetExtras()
   step.value = 'amount'
   await nextTick()
   gramsInput.value?.focus()
@@ -118,14 +126,49 @@ const chips = computed(() => {
   return last && !base.includes(last) ? [...base.slice(0, 3), last] : base
 })
 
+// ---------- oil & sauce: logged as their own entries in the same meal ----------
+const extras = reactive({ oil: false, oilKey: 'oil', oilG: 5, sauce: false, sauceKey: 'ketchup', sauceG: 20 })
+watch(() => extras.sauceKey, (k) => { extras.sauceG = SAUCES.find(x => x.key === k)!.grams })
+function resetExtras() { Object.assign(extras, { oil: false, oilKey: 'oil', oilG: 5, sauce: false, sauceKey: 'ketchup', sauceG: 20 }) }
+function extraItems(food: string) {
+  const out: { name: string, grams: number, per100: typeof OILS[number]['per100'], source: string, note?: string }[] = []
+  const push = (key: string, g: number, list: typeof OILS) => {
+    const x = list.find(i => i.key === key)!
+    if (g > 0) out.push({ name: t(`extra_${key}` as any), grams: g, per100: x.per100, source: x.source, ...(food ? { note: t('extraFor', { food }) } : {}) })
+  }
+  if (extras.oil) push(extras.oilKey, extras.oilG, OILS)
+  if (extras.sauce) push(extras.sauceKey, extras.sauceG, SAUCES)
+  return out
+}
+const extrasKcal = computed(() => extraItems('').reduce((a, i) => a + i.per100.kcal * i.grams / 100, 0))
+
 async function add(p = picked.value, g = grams.value, keepOpen = false) {
   if (!p || !(g > 0) || busy.value) return
   busy.value = true; error.value = ''
   try {
-    const res = await logPickable(p, g, meal.value, props.date)
+    let res = await logPickable(p, g, meal.value, props.date)
+    const more = keepOpen ? [] : extraItems(p.name)
+    if (more.length) {
+      const r2 = await $fetch<{ created: Entry[], day: Day }>('/api/entries', { method: 'POST', body: { date: props.date, meal: meal.value, items: more } })
+      res = { created: [...res.created, ...r2.created], day: r2.day }
+    }
     emit('added', res.day, res.created, p.name)
     if (!keepOpen) emit('close')
     return true
+  }
+  catch (e) { error.value = errMsg(e, t('somethingWrong')) }
+  finally { busy.value = false }
+}
+
+// one tap logs a whole usual meal (the sheet stays open)
+async function addUsual(m: SavedMeal) {
+  if (busy.value) return
+  busy.value = true; error.value = ''
+  try {
+    const res = await usual.log(m.id, meal.value, props.date)
+    emit('added', res.day, res.created, m.name)
+    justAdded.value = `u:${m.id}`
+    setTimeout(() => { if (justAdded.value === `u:${m.id}`) justAdded.value = null }, 1600)
   }
   catch (e) { error.value = errMsg(e, t('somethingWrong')) }
   finally { busy.value = false }
@@ -215,13 +258,14 @@ watch(() => props.open, (o) => {
   justAdded.value = null
   picked.value = null
   step.value = 'search'
+  usual.load()
   if (props.initialPick) pick(props.initialPick)
 })
 
 const dayLabel = computed(() => fmtDate(locale.value, props.date, { day: 'numeric', month: 'short' }))
 const title = computed(() => step.value === 'manual' ? t('manualTitle') : step.value === 'scan' ? t('scanTitle') : t('addFood'))
 const showsOff = computed(() => off.value.length > 0 || picked.value?.origin === 'open_food_facts' || (step.value === 'amount' && picked.value?.source === 'off'))
-const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100.kcal * (grams.value || 0) / 100) : 0)
+const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100.kcal * (grams.value || 0) / 100 + extrasKcal.value) : 0)
 </script>
 
 <template>
@@ -254,6 +298,22 @@ const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100
 
     <!-- SEARCH -->
     <div v-if="step === 'search'" class="results">
+      <section v-if="usualMatches.length">
+        <h3 class="section-title">{{ t('usualMeals') }}</h3>
+        <ul class="list">
+          <li v-for="m in usualMatches" :key="m.id" class="hit">
+            <button type="button" class="hit-main" :disabled="busy" @click="addUsual(m)">
+              <span class="hn">{{ m.name }}</span>
+              <span class="hm">{{ m.items.map(i => `${i.name} ${n(i.grams)} ${t('g')}`).join(' · ') }}</span>
+            </button>
+            <button type="button" class="quick" :class="{ ok: justAdded === `u:${m.id}` }" :disabled="busy" :aria-label="`${t('addFood')}: ${m.name}`" @click="addUsual(m)">
+              <Icon :name="justAdded === `u:${m.id}` ? 'check' : 'plus'" :size="18" />
+              <span class="num">{{ n(m.kcal) }}</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+
       <section v-if="recentMatches.length">
         <h3 class="section-title">{{ t('recent') }}</h3>
         <ul class="list">
@@ -319,6 +379,31 @@ const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100
       </div>
       <GramsInput ref="gramsInput" v-model="grams" :chips="chips" @submit="add()" />
       <NutritionPreview :per100="picked.per100" :grams="grams" :source="picked.source" />
+      <fieldset class="extras">
+        <legend class="label">{{ t('extrasTitle') }}</legend>
+        <label class="toggle">
+          <input v-model="extras.oil" type="checkbox">
+          <span class="sw" aria-hidden="true" />
+          <span>{{ t('withOil') }}</span>
+        </label>
+        <div v-if="extras.oil" class="xrow">
+          <select v-model="extras.oilKey" class="input" :aria-label="t('withOil')">
+            <option v-for="o in OILS" :key="o.key" :value="o.key">{{ t(`extra_${o.key}` as any) }}</option>
+          </select>
+          <span class="xg"><input v-model.number="extras.oilG" class="input num" type="number" inputmode="decimal" min="0" step="1" :aria-label="t('g')"><span>{{ t('g') }}</span></span>
+        </div>
+        <label class="toggle">
+          <input v-model="extras.sauce" type="checkbox">
+          <span class="sw" aria-hidden="true" />
+          <span>{{ t('withSauce') }}</span>
+        </label>
+        <div v-if="extras.sauce" class="xrow">
+          <select v-model="extras.sauceKey" class="input" :aria-label="t('withSauce')">
+            <option v-for="o in SAUCES" :key="o.key" :value="o.key">{{ t(`extra_${o.key}` as any) }}</option>
+          </select>
+          <span class="xg"><input v-model.number="extras.sauceG" class="input num" type="number" inputmode="decimal" min="0" step="1" :aria-label="t('g')"><span>{{ t('g') }}</span></span>
+        </div>
+      </fieldset>
       <div class="field">
         <span>{{ t('meal') }}</span>
         <MealPicker v-model="meal" />
@@ -457,6 +542,12 @@ const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100
 .toggle input:checked + .sw::after { transform: translateX(18px); }
 .toggle input:focus-visible + .sw { outline: 2.5px solid var(--focus); outline-offset: 2px; }
 
+.extras { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-1); }
+.extras legend { padding: 0 0 var(--s-1); }
+.xrow { display: flex; gap: var(--s-2); padding-left: 58px; }
+.xrow select { flex: 1; min-width: 0; }
+.xg { display: flex; align-items: center; gap: 4px; color: var(--ink-2); font-size: var(--fs-sm); }
+.xg .input { width: 72px; text-align: right; }
 .scan { display: grid; gap: var(--s-4); }
 .bc { display: grid; gap: var(--s-2); }
 .bcrow { display: flex; gap: var(--s-2); }
