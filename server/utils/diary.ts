@@ -49,7 +49,7 @@ export async function getDay(date?: string) {
     meals: Object.fromEntries(MEALS.map((m) => {
       const list = rows.filter(r => r.meal === m)
       return [m, { totals: totals(list), entries: list.map(publicEntry) }]
-    })),
+    })) as Record<typeof MEALS[number], { totals: ReturnType<typeof totals>, entries: ReturnType<typeof publicEntry>[] }>,
   }
 }
 

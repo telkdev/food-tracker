@@ -3,7 +3,7 @@
 </template>
 
 <style>
-:root { color-scheme: light dark; --bg: #fff; --fg: #111; --muted: #666; --card: #f4f4f5; --accent: #16a34a; }
+:root { color-scheme: light dark; --bg: #fff; --fg: #111; --muted: #666; --card: #f4f4f5; --accent: #16a34a; --line: #8883; --warn: #dc2626; }
 @media (prefers-color-scheme: dark) { :root { --bg: #0b0b0c; --fg: #f4f4f5; --muted: #9a9aa0; --card: #18181b; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, sans-serif; }
