@@ -158,8 +158,7 @@ export async function searchProducts(query: string) {
 }
 
 export async function upsertProduct(input: UpsertProductInput) {
-  const barcode = input.barcode ? normalizeBarcode(input.barcode) : null
-  if (input.barcode && !barcode) throw createError({ statusCode: 400, statusMessage: 'Barcode must be 8, 12, 13 or 14 digits' })
+  const barcode = input.barcode ? requireBarcode(input.barcode) : null
   const values = {
     name: input.name, brand: input.brand ?? null, barcode,
     kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
@@ -175,8 +174,7 @@ export async function upsertProduct(input: UpsertProductInput) {
 
 /** My products first; otherwise OFF, then save it as source=off so the next scan is local. */
 export async function lookupBarcode(raw: string) {
-  const barcode = normalizeBarcode(raw)
-  if (!barcode) throw createError({ statusCode: 400, statusMessage: 'Barcode must be 8, 12, 13 or 14 digits' })
+  const barcode = requireBarcode(raw)
   const [mine] = await useDb().select().from(schema.products).where(eq(schema.products.barcode, barcode))
   if (mine) return { found: true, origin: 'my_products' as const, product: publicProduct(mine) }
   const off = await offProductByBarcode(barcode)
@@ -199,8 +197,7 @@ export async function listMyProducts(limit = 500) {
 }
 
 export async function updateProduct(id: string, input: UpsertProductInput) {
-  const barcode = input.barcode ? normalizeBarcode(input.barcode) : null
-  if (input.barcode && !barcode) throw createError({ statusCode: 400, statusMessage: 'Barcode must be 8, 12, 13 or 14 digits' })
+  const barcode = input.barcode ? requireBarcode(input.barcode) : null
   const [row] = await useDb().update(schema.products).set({
     name: input.name, brand: input.brand ?? null, barcode,
     kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
