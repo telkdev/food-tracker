@@ -168,7 +168,7 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('search_products', {
     title: 'Search products',
-    description: 'Search the user\'s saved products ("my_products", preferred) and then Open Food Facts. Each result has origin and per-100 g values. Products from my_products have an id you can pass to log_food; for an Open Food Facts result, either pass its per100 with source "off" or save it first with upsert_product. Queries in Polish, English or Russian are fine; brand names help.',
+    description: 'Search the user\'s saved products ("my_products", preferred) and then Open Food Facts. Each result has origin and per-100 g values. Products from my_products have an id you can pass to log_food; for an Open Food Facts result, either pass its per100 with source "off" or save it first with upsert_product. Matching is forgiving (parts of words, any order, diacritics optional, small typos); Open Food Facts results are only products sold in Poland. Queries in Polish, English or Russian are fine; brand names help.',
     inputSchema: { query: z.string().describe('Product name, brand or barcode') },
     annotations: { readOnlyHint: true },
   }, tool('search_products', async ({ query }: { query: string }) => {

@@ -51,3 +51,14 @@ export function mealNow(timeZone = 'Europe/Warsaw'): 'breakfast' | 'lunch' | 'di
 export function errMsg(e: any, fallback = 'Error') {
   return e?.data?.statusMessage || e?.statusMessage || e?.data?.message || e?.message || fallback
 }
+
+/** Lowercase, no diacritics (ó→o, ł→l, ё→е): so "twarog" finds "Twaróg". */
+export function fold(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/ё/g, 'е')
+}
+
+/** Every word of the query appears somewhere in the text, in any order, as part of a word. */
+export function matchesWords(text: string, query: string) {
+  const hay = fold(text)
+  return fold(query).split(/[\s,]+/).filter(Boolean).every(w => hay.includes(w))
+}

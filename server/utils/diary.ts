@@ -135,12 +135,30 @@ export async function setGoals(uid: string, g: GoalsInput) {
 
 // ---------- products ----------
 
+/**
+ * Forgiving search over My products:
+ * - every word may be a part of a word, in any order ("polt twar" finds "Twaróg półtłusty");
+ * - Polish/other diacritics are ignored ("twarog", "polt");
+ * - small typos still match via trigram word similarity ("twarg");
+ * - brand counts too ("piatnica skyr"); an exact barcode always matches.
+ * Best matches first: name starts with the query, then all words found, then by similarity.
+ */
 export async function searchMyProducts(uid: string, query: string, limit = 10) {
-  const q = `%${query.trim().replace(/[%_]/g, m => `\\${m}`)}%`
+  const raw = query.trim().toLowerCase()
+  const words = raw.split(/[\s,]+/).filter(Boolean).slice(0, 6).map(w => w.replace(/[\\%_]/g, m => `\\${m}`))
+  if (!words.length) return []
   const p = schema.products
+  const hay = sql`f_unaccent(lower(${p.name} || ' ' || coalesce(${p.brand}, '')))`
+  const nq = sql`f_unaccent(${raw})`
+  const allWords = sql.join(words.map(w => sql`${hay} like '%' || f_unaccent(${w}) || '%'`), sql` and `)
+  const sim = sql`word_similarity(${nq}, ${hay})`
   const rows = await useDb().select().from(p)
-    .where(and(eq(p.userId, uid), or(ilike(p.name, q), ilike(p.brand, q), eq(p.barcode, query.trim()))))
-    .orderBy(asc(p.name)).limit(limit)
+    .where(and(eq(p.userId, uid), or(sql`(${allWords})`, sql`${sim} >= 0.45`, eq(p.barcode, query.trim()))))
+    .orderBy(
+      sql`case when f_unaccent(lower(${p.name})) like ${nq} || '%' then 0 when (${allWords}) then 1 else 2 end`,
+      sql`${sim} desc`,
+      asc(p.name),
+    ).limit(limit)
   return rows.map(publicProduct)
 }
 

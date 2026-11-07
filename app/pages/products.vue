@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Pickable, Product } from '~/utils/types'
-import { errMsg } from '~/utils/format'
+import { errMsg, matchesWords } from '~/utils/format'
 
 const { t, n } = useT()
 const toast = useToast()
@@ -12,7 +12,7 @@ const list = computed(() => {
   const all = data.value?.results ?? []
   const s = q.value.trim().toLowerCase()
   if (!s) return all
-  return all.filter(p => p.name.toLowerCase().includes(s) || (p.brand ?? '').toLowerCase().includes(s) || (p.barcode ?? '').includes(s))
+  return all.filter(p => matchesWords(`${p.name} ${p.brand ?? ''}`, s) || (p.barcode ?? '').includes(s))
 })
 const anyOff = computed(() => list.value.some(p => p.source === 'off'))
 

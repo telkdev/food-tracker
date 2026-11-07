@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Day, Entry, Meal, Pickable, ProductSource, SavedMeal, SearchResult } from '~/utils/types'
 import { OILS, SAUCES } from '~/utils/extras'
-import { errMsg, fmtDate, parseDecimal } from '~/utils/format'
+import { errMsg, fmtDate, matchesWords, parseDecimal } from '~/utils/format'
 
 const props = defineProps<{ open: boolean, date: string, meal: Meal, initialPick?: Pickable | null }>()
 const emit = defineEmits<{ close: [], added: [day: Day, created: Entry[], name: string] }>()
@@ -77,7 +77,7 @@ const recentMatches = computed(() => {
   const s = query.value.toLowerCase()
   if (s.length < 2) return recent.value
   const mineIds = new Set(mine.value.map(m => m.id))
-  return recent.value.filter(r => r.name.toLowerCase().includes(s) && !(r.product_id && mineIds.has(r.product_id))).slice(0, 5)
+  return recent.value.filter(r => matchesWords(r.name, s) && !(r.product_id && mineIds.has(r.product_id))).slice(0, 5)
 })
 
 const usualMatches = computed(() => {

@@ -85,19 +85,37 @@ export async function offProductByBarcode(barcode: string): Promise<OffProduct |
   })
 }
 
-/** Full-text search via Search-a-licious (the v2 /api/v2/search endpoint has no full-text search). */
-export async function offSearch(query: string, limit = 8): Promise<OffProduct[]> {
+/**
+ * Full-text search via Search-a-licious (the v2 /api/v2/search endpoint has no full-text search).
+ * Only products sold in Poland. The last word is a prefix ("twar" → "twar*"), so results appear while typing.
+ * Cards without per-100 g kcal are dropped, so we ask for more than we show.
+ */
+export async function offSearch(query: string, limit = 10): Promise<OffProduct[]> {
   const q = query.trim().toLowerCase()
   return cached(`q:${q}:${limit}`, 3600_000, async () => {
     if (!allow('search', 9)) return [] // degrade quietly: My products results still come back
     const { searchBase } = cfg()
-    const url = `${searchBase}/search?q=${encodeURIComponent(q)}&langs=pl,en&page_size=${limit}&fields=code,product_name,brands,nutriments`
-    const json = await offFetch(url)
+    // strip query-language characters so user text can't change the filter
+    const words = q.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).map(w => w.replace(/^[-']+/, '')).filter(Boolean).slice(0, 6)
+    if (!words.length) return []
+    const last = words.at(-1)!
+    const text = [...words.slice(0, -1), last.length >= 3 ? `${last}*` : last].join(' ')
+    const run = async (t: string) => {
+      const lucene = `${t} countries_tags:"en:poland"`
+      const url = `${searchBase}/search?q=${encodeURIComponent(lucene)}&langs=pl,en&page_size=${limit * 2}&fields=code,product_name,brands,nutriments`
+      return offFetch(url)
+    }
+    let json: any
+    try { json = await run(text) }
+    catch (e) {
+      if (text === words.join(' ') || !allow('search', 9)) throw e
+      json = await run(words.join(' ')) // wildcard rejected: plain words
+    }
     return (json?.hits ?? []).map((h: any) => ({
       barcode: String(h.code ?? ''),
       name: asText(h.product_name) || `Product ${h.code}`,
       brand: asText(h.brands),
       per100: mapNutriments(h.nutriments),
-    })).filter((p: OffProduct) => p.per100)
+    })).filter((p: OffProduct) => p.per100).slice(0, limit)
   })
 }
