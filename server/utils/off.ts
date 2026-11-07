@@ -87,7 +87,7 @@ export async function offProductByBarcode(barcode: string): Promise<OffProduct |
 
 /**
  * Full-text search via Search-a-licious (the v2 /api/v2/search endpoint has no full-text search).
- * Only products sold in Poland. The last word is a prefix ("twar" → "twar*"), so results appear while typing.
+ * Only products sold in Poland.
  * Cards without per-100 g kcal are dropped, so we ask for more than we show.
  */
 export async function offSearch(query: string, limit = 10): Promise<OffProduct[]> {
@@ -98,19 +98,10 @@ export async function offSearch(query: string, limit = 10): Promise<OffProduct[]
     // strip query-language characters so user text can't change the filter
     const words = q.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).map(w => w.replace(/^[-']+/, '')).filter(Boolean).slice(0, 6)
     if (!words.length) return []
-    const last = words.at(-1)!
-    const text = [...words.slice(0, -1), last.length >= 3 ? `${last}*` : last].join(' ')
-    const run = async (t: string) => {
-      const lucene = `${t} countries_tags:"en:poland"`
-      const url = `${searchBase}/search?q=${encodeURIComponent(lucene)}&langs=pl,en&page_size=${limit * 2}&fields=code,product_name,brands,nutriments`
-      return offFetch(url)
-    }
-    let json: any
-    try { json = await run(text) }
-    catch (e) {
-      if (text === words.join(' ') || !allow('search', 9)) throw e
-      json = await run(words.join(' ')) // wildcard rejected: plain words
-    }
+    // Note: Search-a-licious ignores "word*" prefixes (checked live 2026-11-07: "twar" → 0 hits),
+    // so OFF needs whole words; parts of words are handled by My products search.
+    const lucene = `${words.join(' ')} countries_tags:"en:poland"`
+    const json: any = await offFetch(`${searchBase}/search?q=${encodeURIComponent(lucene)}&langs=pl,en&page_size=${limit * 2}&fields=code,product_name,brands,nutriments`)
     return (json?.hits ?? []).map((h: any) => ({
       barcode: String(h.code ?? ''),
       name: asText(h.product_name) || `Product ${h.code}`,
