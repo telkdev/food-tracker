@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 /** Rough Claude token estimate: ASCII ≈ 3.5 chars/token, everything else ≈ 2 chars/token. */
 export function estimateTokens(s: string) {
@@ -7,18 +7,18 @@ export function estimateTokens(s: string) {
   return Math.ceil(ascii / 3.5 + (s.length - ascii) / 2)
 }
 
-export function logMcpCall(tool: string, args: unknown, out: string, ok: boolean, ms: number) {
+export function logMcpCall(uid: string, tool: string, args: unknown, out: string, ok: boolean, ms: number) {
   const input = JSON.stringify(args ?? {})
   // fire-and-forget: usage logging must never break a tool call
   useDb().insert(schema.mcpCalls).values({
-    tool, ok, ms,
+    userId: uid, tool, ok, ms,
     inChars: input.length, outChars: out.length,
     inTokens: estimateTokens(input), outTokens: estimateTokens(out),
   }).catch(e => console.warn('[usage] log failed', e?.message))
 }
 
-export async function getUsage(days: number) {
-  const s = await getSettings()
+export async function getUsage(uid: string, days: number) {
+  const s = await getSettings(uid)
   const tz = s.timezone
   const c = schema.mcpCalls
   const since = sql`now() - make_interval(days => ${days})`
@@ -29,7 +29,7 @@ export async function getUsage(days: number) {
       date: localDay,
       calls: sql<number>`count(*)::int`,
       tokens: sql<number>`sum(${c.inTokens} + ${c.outTokens})::int`,
-    }).from(c).where(sql`${c.at} >= ${since}`).groupBy(sql`1`).orderBy(sql`1`),
+    }).from(c).where(and(eq(c.userId, uid), sql`${c.at} >= ${since}`)).groupBy(sql`1`).orderBy(sql`1`),
     db.select({
       tool: c.tool,
       calls: sql<number>`count(*)::int`,
@@ -37,7 +37,7 @@ export async function getUsage(days: number) {
       tokens: sql<number>`sum(${c.inTokens} + ${c.outTokens})::int`,
       avg_tokens: sql<number>`round(avg(${c.inTokens} + ${c.outTokens}))::int`,
       avg_ms: sql<number>`round(avg(${c.ms}))::int`,
-    }).from(c).where(sql`${c.at} >= ${since}`).groupBy(c.tool).orderBy(sql`4 desc`),
+    }).from(c).where(and(eq(c.userId, uid), sql`${c.at} >= ${since}`)).groupBy(c.tool).orderBy(sql`4 desc`),
   ])
   const today = localDate(tz)
   return {

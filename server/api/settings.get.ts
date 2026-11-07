@@ -1,4 +1,5 @@
-export default defineEventHandler(async () => {
-  const s = await getSettings()
-  return { ...s, today: localDate(s.timezone) }
+export default defineEventHandler(async (event) => {
+  const s = await getSettings(uidOf(event))
+  const { userId: _, ...rest } = s
+  return { ...rest, today: localDate(s.timezone) }
 })

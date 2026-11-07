@@ -17,7 +17,7 @@ const slimDay = (d: Day) => ({
 })
 
 /** Run a tool body, log its size for the usage page, and turn errors into a tool error Claude can read and fix. */
-function tool<A>(name: string, fn: (args: A) => Promise<unknown>) {
+const makeTool = (uid: string) => function tool<A>(name: string, fn: (args: A) => Promise<unknown>) {
   return async (args: A) => {
     const t0 = Date.now()
     let text: string
@@ -29,7 +29,7 @@ function tool<A>(name: string, fn: (args: A) => Promise<unknown>) {
       const detail = e?.data ? ` ${JSON.stringify(e.data)}` : ''
       text = `${e?.statusMessage || e?.message || 'Error'}${detail}`
     }
-    logMcpCall(name, args, text, ok, Date.now() - t0)
+    logMcpCall(uid, name, args, text, ok, Date.now() - t0)
     return ok ? { content: [{ type: 'text' as const, text }] } : { isError: true, content: [{ type: 'text' as const, text }] }
   }
 }
@@ -43,11 +43,13 @@ const per100 = z.object({
 const meal = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
 const date = z.string().describe('Local date YYYY-MM-DD (Europe/Warsaw). Omit for today.')
 
-export function buildMcpServer() {
+/** One server per request, bound to the user the OAuth token belongs to: every tool reads and writes only their data. */
+export function buildMcpServer(uid: string) {
+  const tool = makeTool(uid)
   const server = new McpServer(
     { name: 'food-tracker', title: 'Food Tracker', version: '0.3.0' },
     { instructions: [
-      'Personal food diary of one user (Vasyl). All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
+      'Personal food diary of the signed-in user. All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
       'At the start of every conversation about food, call get_context once: it returns his standing rules (follow them), his usual meals and his most frequent products with the grams he usually eats.',
       'Prefer, in order: a usual meal (log_meal), a frequent or saved product (product_id), search_products, and only then your own estimate.',
       'Ask for grams instead of guessing; a guess must be logged with source "estimate".',
@@ -80,7 +82,7 @@ export function buildMcpServer() {
       })).min(1),
     },
   }, tool('log_food', async (args) => {
-    const r = await logFood(parseOr400(logFoodSchema, args))
+    const r = await logFood(uid, parseOr400(logFoodSchema, args))
     return { created: r.created.map(slimEntry), day: dayTotals(r.day) }
   }))
 
@@ -90,7 +92,7 @@ export function buildMcpServer() {
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, tool('get_context', async () => {
-    const c = await getContext()
+    const c = await getContext(uid)
     return {
       prefs: Object.fromEntries(c.prefs.map(p => [p.key, p.text])),
       meals: c.meals.map(m => ({ id: m.id, name: m.name, ...(m.default_meal ? { meal: m.default_meal } : {}), kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) })),
@@ -110,7 +112,7 @@ export function buildMcpServer() {
     },
   }, tool('set_preference', async args => {
     const p = parseOr400(setPreferenceSchema, args)
-    return setPreference(p.key, p.text)
+    return setPreference(uid, p.key, p.text)
   }))
 
   server.registerTool('log_meal', {
@@ -118,7 +120,7 @@ export function buildMcpServer() {
     description: 'Log all items of a usual meal (id from get_context) in one call. scale multiplies every item\'s grams (e.g. 1.5). To change one item, log the meal and then fix that entry with update_entry, or log extra items with log_food.',
     inputSchema: { meal_id: z.string(), date: date.optional(), meal: meal.optional(), scale: z.number().optional() },
   }, tool('log_meal', async (args) => {
-    const r = await logSavedMeal(parseOr400(logMealSchema, args))
+    const r = await logSavedMeal(uid, parseOr400(logMealSchema, args))
     return { created: r.created.map(slimEntry), day: dayTotals(r.day) }
   }))
 
@@ -136,7 +138,7 @@ export function buildMcpServer() {
       })).optional(),
     },
   }, tool('save_meal', async (args) => {
-    const m = await saveMeal(parseOr400(saveMealSchema, args))
+    const m = await saveMeal(uid, parseOr400(saveMealSchema, args))
     return { id: m.id, name: m.name, kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) }
   }))
 
@@ -145,14 +147,14 @@ export function buildMcpServer() {
     description: 'Delete a usual meal by id (from get_context). Diary entries are not affected.',
     inputSchema: { id: z.string() },
     annotations: { destructiveHint: true },
-  }, tool('delete_meal', async ({ id }: { id: string }) => deleteSavedMeal(parseOr400(z.uuid(), id))))
+  }, tool('delete_meal', async ({ id }: { id: string }) => deleteSavedMeal(uid, parseOr400(z.uuid(), id))))
 
   server.registerTool('get_day', {
     title: 'Get a diary day',
     description: 'Entries grouped by meal (empty meals omitted; g = grams, src = source), totals, goal and kcal left for one day (default today).',
     inputSchema: { date: date.optional() },
     annotations: { readOnlyHint: true },
-  }, tool('get_day', async ({ date }: { date?: string }) => slimDay(await getDay(date ? parseOr400(isoDate, date) : undefined))))
+  }, tool('get_day', async ({ date }: { date?: string }) => slimDay(await getDay(uid, date ? parseOr400(isoDate, date) : undefined))))
 
   server.registerTool('get_range', {
     title: 'Get totals for a date range',
@@ -160,7 +162,7 @@ export function buildMcpServer() {
     inputSchema: { from: z.string().describe('YYYY-MM-DD'), to: z.string().describe('YYYY-MM-DD') },
     annotations: { readOnlyHint: true },
   }, tool('get_range', async ({ from, to }: { from: string, to: string }) => {
-    const r = await getRange(parseOr400(isoDate, from), parseOr400(isoDate, to))
+    const r = await getRange(uid, parseOr400(isoDate, from), parseOr400(isoDate, to))
     return { goal_kcal: r.goal_kcal, logged_days: r.logged_days, avg_kcal: r.avg_kcal_logged_days, days: r.days.map(d => [d.date, d.kcal, d.p, d.f, d.c]), days_format: '[date, kcal, p, f, c]' }
   }))
 
@@ -170,7 +172,7 @@ export function buildMcpServer() {
     inputSchema: { query: z.string().describe('Product name, brand or barcode') },
     annotations: { readOnlyHint: true },
   }, tool('search_products', async ({ query }: { query: string }) => {
-    const r = await searchProducts(query)
+    const r = await searchProducts(uid, query)
     return {
       results: r.results.map(x => ({ from: x.origin === 'my_products' ? 'mine' : 'off', ...(x.id ? { id: x.id } : {}), name: x.name, ...(x.brand ? { brand: x.brand } : {}), ...(x.barcode ? { barcode: x.barcode } : {}), per100: x.per100 })),
       ...(r.off_error ? { off_error: r.off_error } : {}),
@@ -181,7 +183,7 @@ export function buildMcpServer() {
     title: 'Look up a barcode',
     description: 'Find a product by EAN/UPC barcode: My products first, then Open Food Facts. A product found on Open Food Facts is saved to My products and returned with an id for log_food. If not found, read the package label and use upsert_product.',
     inputSchema: { barcode: z.string().describe('8–14 digits') },
-  }, tool('lookup_barcode', async ({ barcode }: { barcode: string }) => lookupBarcode(barcode)))
+  }, tool('lookup_barcode', async ({ barcode }: { barcode: string }) => lookupBarcode(uid, barcode)))
 
   server.registerTool('upsert_product', {
     title: 'Save a product',
@@ -190,7 +192,7 @@ export function buildMcpServer() {
       name: z.string(), brand: z.string().optional(), barcode: z.string().optional(),
       per100, source: z.enum(['label', 'off', 'generic', 'estimate']), note: z.string().optional(),
     },
-  }, tool('upsert_product', async args => upsertProduct(parseOr400(upsertProductSchema, args))))
+  }, tool('upsert_product', async args => upsertProduct(uid, parseOr400(upsertProductSchema, args))))
 
   server.registerTool('update_entry', {
     title: 'Edit an entry',
@@ -199,7 +201,7 @@ export function buildMcpServer() {
       id: z.string(), grams: z.number().optional(), meal: meal.optional(), date: date.optional(),
       name: z.string().optional(), note: z.string().nullable().optional(),
     },
-  }, tool('update_entry', async ({ id, ...patch }: { id: string } & Record<string, unknown>) => slimEntry(await updateEntry(parseOr400(z.uuid(), id), parseOr400(updateEntrySchema, patch)))))
+  }, tool('update_entry', async ({ id, ...patch }: { id: string } & Record<string, unknown>) => slimEntry(await updateEntry(uid, parseOr400(z.uuid(), id), parseOr400(updateEntrySchema, patch)))))
 
   server.registerTool('delete_entry', {
     title: 'Delete an entry',
@@ -207,7 +209,7 @@ export function buildMcpServer() {
     inputSchema: { id: z.string() },
     annotations: { destructiveHint: true },
   }, tool('delete_entry', async ({ id }: { id: string }) => {
-    const r = await deleteEntry(parseOr400(z.uuid(), id))
+    const r = await deleteEntry(uid, parseOr400(z.uuid(), id))
     return { deleted: { id: r.deleted.id, name: r.deleted.name }, day: dayTotals(r.day) }
   }))
 
@@ -218,7 +220,7 @@ export function buildMcpServer() {
       kcal_goal: z.number().int().optional(), p_goal: z.number().int().nullable().optional(),
       f_goal: z.number().int().nullable().optional(), c_goal: z.number().int().nullable().optional(),
     },
-  }, tool('set_goals', async args => setGoals(parseOr400(goalsSchema, args))))
+  }, tool('set_goals', async args => setGoals(uid, parseOr400(goalsSchema, args))))
 
   return server
 }

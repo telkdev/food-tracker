@@ -6,7 +6,7 @@ import type { LangPref } from '~/composables/useI18n'
 const { t, locale } = useT()
 const toast = useToast()
 const { settings } = useSettings()
-const { clear } = useUserSession()
+const { clear, user } = useUserSession()
 const requestFetch = useRequestFetch()
 const langPref = useLangPref()
 
@@ -161,7 +161,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 
     <button type="button" class="btn btn-block logout" @click="logout"><Icon name="logout" :size="20" />{{ t('logout') }}</button>
 
-    <p class="attribution about">{{ t('appName') }} · {{ locale }} · {{ t('offAttribution') }}</p>
+    <p class="attribution about">{{ t('appName') }} · {{ t('signedInAs', { name: (user as any)?.id ?? '' }) }} · {{ locale }} · {{ t('offAttribution') }}</p>
   </div>
 </template>
 

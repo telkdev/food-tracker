@@ -1,1 +1,1 @@
-export default defineEventHandler(async event => lookupBarcode(getRouterParam(event, 'code') ?? ''))
+export default defineEventHandler(async event => lookupBarcode(uidOf(event), getRouterParam(event, 'code') ?? ''))

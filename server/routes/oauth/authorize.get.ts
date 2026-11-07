@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
   if (v.fatal) return errorPage(event, v.fatal)
   if (v.redirectError) return sendRedirect(event, v.redirectError, 302)
   const session = await getUserSession(event)
-  if (!session.user) {
+  if (!isKnownUser((session.user as { id?: unknown } | undefined)?.id)) {
     const u = getRequestURL(event)
     return sendRedirect(event, `/login?next=${encodeURIComponent(u.pathname + u.search)}`, 302)
   }

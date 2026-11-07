@@ -1,1 +1,1 @@
-export default defineEventHandler(() => listPreferences())
+export default defineEventHandler(event => listPreferences(uidOf(event)))

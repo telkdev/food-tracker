@@ -36,10 +36,10 @@ function dbError(e: any): never {
   throw e
 }
 
-export async function getDay(date?: string) {
-  const s = await getSettings()
+export async function getDay(uid: string, date?: string) {
+  const s = await getSettings(uid)
   const day = date ?? localDate(s.timezone)
-  const rows = await useDb().select().from(schema.entries).where(eq(schema.entries.date, day)).orderBy(asc(schema.entries.loggedAt))
+  const rows = await useDb().select().from(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.date, day))).orderBy(asc(schema.entries.loggedAt))
   const t = totals(rows)
   return {
     date: day,
@@ -55,11 +55,11 @@ export async function getDay(date?: string) {
   }
 }
 
-export async function getRange(from: string, to: string) {
+export async function getRange(uid: string, from: string, to: string) {
   if (from > to) throw createError({ statusCode: 400, statusMessage: '`from` must be on or before `to`' })
   const days = (Date.parse(to) - Date.parse(from)) / 86400_000
   if (days > 366) throw createError({ statusCode: 400, statusMessage: 'Range is limited to 366 days' })
-  const s = await getSettings()
+  const s = await getSettings(uid)
   const e = schema.entries
   const rows = await useDb().select({
     date: e.date,
@@ -68,19 +68,20 @@ export async function getRange(from: string, to: string) {
     f: sql<number>`round(sum(${e.f}), 1)::float8`,
     c: sql<number>`round(sum(${e.c}), 1)::float8`,
     entries: sql<number>`count(*)::int`,
-  }).from(e).where(between(e.date, from, to)).groupBy(e.date).orderBy(asc(e.date))
+  }).from(e).where(and(eq(e.userId, uid), between(e.date, from, to))).groupBy(e.date).orderBy(asc(e.date))
   const avg = rows.length ? r1(rows.reduce((a, r) => a + r.kcal, 0) / rows.length) : null
   return { from, to, goal_kcal: s.kcalGoal, logged_days: rows.length, avg_kcal_logged_days: avg, days: rows }
 }
 
-export async function logFood(input: LogFoodInput) {
-  const s = await getSettings()
+export async function logFood(uid: string, input: LogFoodInput) {
+  const s = await getSettings(uid)
   const date = input.date ?? localDate(s.timezone)
   const meal = input.meal ?? mealFromTime(s.timezone)
   const db = useDb()
 
   const ids = input.items.map(i => i.product_id).filter(Boolean) as string[]
-  const products = ids.length ? await db.select().from(schema.products).where(inArray(schema.products.id, ids)) : []
+  // only this user's products: an id from someone else's list is "not found"
+  const products = ids.length ? await db.select().from(schema.products).where(and(eq(schema.products.userId, uid), inArray(schema.products.id, ids))) : []
   const byId = new Map(products.map(p => [p.id, p]))
 
   const values = input.items.map((item, i) => {
@@ -91,17 +92,17 @@ export async function logFood(input: LogFoodInput) {
     const source = item.source ?? prod?.source
     if (!source) throw createError({ statusCode: 400, statusMessage: `items[${i}] (${item.name}): source is required without product_id` })
     return {
-      date, meal, productId: prod?.id ?? null, name: item.name, grams: item.grams,
+      userId: uid, date, meal, productId: prod?.id ?? null, name: item.name, grams: item.grams,
       kcal100: per100.kcal, p100: per100.p, f100: per100.f, c100: per100.c,
       source, note: item.note ?? null,
     }
   })
 
   const created = await db.insert(schema.entries).values(values).returning().catch(dbError)
-  return { created: created.map(publicEntry), day: await getDay(date) }
+  return { created: created.map(publicEntry), day: await getDay(uid, date) }
 }
 
-export async function updateEntry(id: string, patch: UpdateEntryInput) {
+export async function updateEntry(uid: string, id: string, patch: UpdateEntryInput) {
   const set: Partial<typeof schema.entries.$inferInsert> = {}
   if (patch.grams !== undefined) set.grams = patch.grams
   if (patch.meal !== undefined) set.meal = patch.meal
@@ -109,42 +110,43 @@ export async function updateEntry(id: string, patch: UpdateEntryInput) {
   if (patch.note !== undefined) set.note = patch.note
   if (patch.name !== undefined) set.name = patch.name
   if (!Object.keys(set).length) throw createError({ statusCode: 400, statusMessage: 'Nothing to update' })
-  const [row] = await useDb().update(schema.entries).set(set).where(eq(schema.entries.id, id)).returning().catch(dbError)
+  const [row] = await useDb().update(schema.entries).set(set).where(and(eq(schema.entries.userId, uid), eq(schema.entries.id, id))).returning().catch(dbError)
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Entry not found' })
   return publicEntry(row)
 }
 
-export async function deleteEntry(id: string) {
-  const [row] = await useDb().delete(schema.entries).where(eq(schema.entries.id, id)).returning()
+export async function deleteEntry(uid: string, id: string) {
+  const [row] = await useDb().delete(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.id, id))).returning()
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Entry not found' })
-  return { deleted: publicEntry(row), day: await getDay(row.date) }
+  return { deleted: publicEntry(row), day: await getDay(uid, row.date) }
 }
 
-export async function setGoals(g: GoalsInput) {
+export async function setGoals(uid: string, g: GoalsInput) {
   const set: Partial<typeof schema.settings.$inferInsert> = {}
   if (g.kcal_goal !== undefined) set.kcalGoal = g.kcal_goal
   if (g.p_goal !== undefined) set.pGoal = g.p_goal
   if (g.f_goal !== undefined) set.fGoal = g.f_goal
   if (g.c_goal !== undefined) set.cGoal = g.c_goal
   if (!Object.keys(set).length) throw createError({ statusCode: 400, statusMessage: 'Nothing to update' })
-  const [row] = await useDb().update(schema.settings).set(set).where(eq(schema.settings.id, 1)).returning().catch(dbError)
+  await getSettings(uid)
+  const [row] = await useDb().update(schema.settings).set(set).where(eq(schema.settings.userId, uid)).returning().catch(dbError)
   return { kcal_goal: row!.kcalGoal, p_goal: row!.pGoal, f_goal: row!.fGoal, c_goal: row!.cGoal }
 }
 
 // ---------- products ----------
 
-export async function searchMyProducts(query: string, limit = 10) {
+export async function searchMyProducts(uid: string, query: string, limit = 10) {
   const q = `%${query.trim().replace(/[%_]/g, m => `\\${m}`)}%`
   const p = schema.products
   const rows = await useDb().select().from(p)
-    .where(or(ilike(p.name, q), ilike(p.brand, q), eq(p.barcode, query.trim())))
+    .where(and(eq(p.userId, uid), or(ilike(p.name, q), ilike(p.brand, q), eq(p.barcode, query.trim()))))
     .orderBy(asc(p.name)).limit(limit)
   return rows.map(publicProduct)
 }
 
-export async function searchProducts(query: string) {
+export async function searchProducts(uid: string, query: string) {
   if (query.trim().length < 2) throw createError({ statusCode: 400, statusMessage: 'Query must be at least 2 characters' })
-  const mine = await searchMyProducts(query)
+  const mine = await searchMyProducts(uid, query)
   let off: Awaited<ReturnType<typeof offSearch>> = []
   let offError: string | null = null
   try { off = await offSearch(query) } catch (e: any) { offError = e?.statusMessage || e?.message || 'Open Food Facts unavailable' }
@@ -159,59 +161,59 @@ export async function searchProducts(query: string) {
   }
 }
 
-export async function upsertProduct(input: UpsertProductInput) {
+export async function upsertProduct(uid: string, input: UpsertProductInput) {
   const barcode = input.barcode ? requireBarcode(input.barcode) : null
   const values = {
-    name: input.name, brand: input.brand ?? null, barcode,
+    userId: uid, name: input.name, brand: input.brand ?? null, barcode,
     kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
     source: input.source, note: input.note ?? null,
   }
   const db = useDb()
   const q = barcode
-    ? db.insert(schema.products).values(values).onConflictDoUpdate({ target: schema.products.barcode, set: { ...values, updatedAt: new Date() } })
+    ? db.insert(schema.products).values(values).onConflictDoUpdate({ target: [schema.products.userId, schema.products.barcode], set: { ...values, updatedAt: new Date() } })
     : db.insert(schema.products).values(values)
   const [row] = await q.returning().catch(dbError)
   return publicProduct(row!)
 }
 
 /** My products first; otherwise OFF, then save it as source=off so the next scan is local. */
-export async function lookupBarcode(raw: string) {
+export async function lookupBarcode(uid: string, raw: string) {
   const barcode = requireBarcode(raw)
-  const [mine] = await useDb().select().from(schema.products).where(eq(schema.products.barcode, barcode))
+  const [mine] = await useDb().select().from(schema.products).where(and(eq(schema.products.userId, uid), eq(schema.products.barcode, barcode)))
   if (mine) return { found: true, origin: 'my_products' as const, product: publicProduct(mine) }
   const off = await offProductByBarcode(barcode)
   if (!off) return { found: false, barcode, hint: 'Not in Open Food Facts. Read the label and save it with upsert_product (source "label").' }
   if (!off.per100) return { found: false, barcode, name: off.name, brand: off.brand, hint: 'Found in Open Food Facts but without complete per-100 g nutrition. Read the label and save it with upsert_product.' }
-  const saved = await upsertProduct({ name: off.name, brand: off.brand ?? undefined, barcode, per100: off.per100, source: 'off' })
+  const saved = await upsertProduct(uid, { name: off.name, brand: off.brand ?? undefined, barcode, per100: off.per100, source: 'off' })
   return { found: true, origin: 'open_food_facts' as const, product: saved, attribution: 'Product data from Open Food Facts (ODbL)' }
 }
 
-export async function getProduct(id: string) {
-  const [row] = await useDb().select().from(schema.products).where(eq(schema.products.id, id))
+export async function getProduct(uid: string, id: string) {
+  const [row] = await useDb().select().from(schema.products).where(and(eq(schema.products.userId, uid), eq(schema.products.id, id)))
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
   return publicProduct(row)
 }
 
 /** All of My products, for the Products screen (search needs ≥ 2 chars). */
-export async function listMyProducts(limit = 500) {
-  const rows = await useDb().select().from(schema.products).orderBy(asc(sql`lower(${schema.products.name})`)).limit(limit)
+export async function listMyProducts(uid: string, limit = 500) {
+  const rows = await useDb().select().from(schema.products).where(eq(schema.products.userId, uid)).orderBy(asc(sql`lower(${schema.products.name})`)).limit(limit)
   return rows.map(publicProduct)
 }
 
-export async function updateProduct(id: string, input: UpsertProductInput) {
+export async function updateProduct(uid: string, id: string, input: UpsertProductInput) {
   const barcode = input.barcode ? requireBarcode(input.barcode) : null
   const [row] = await useDb().update(schema.products).set({
     name: input.name, brand: input.brand ?? null, barcode,
     kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
     source: input.source, note: input.note ?? null, updatedAt: new Date(),
-  }).where(eq(schema.products.id, id)).returning().catch(dbError)
+  }).where(and(eq(schema.products.userId, uid), eq(schema.products.id, id))).returning().catch(dbError)
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
   return publicProduct(row)
 }
 
 /** Past entries keep their per-100 g snapshot (product_id is set to null). */
-export async function deleteProduct(id: string) {
-  const [row] = await useDb().delete(schema.products).where(eq(schema.products.id, id)).returning()
+export async function deleteProduct(uid: string, id: string) {
+  const [row] = await useDb().delete(schema.products).where(and(eq(schema.products.userId, uid), eq(schema.products.id, id))).returning()
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
   return { deleted: publicProduct(row) }
 }

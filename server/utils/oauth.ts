@@ -3,11 +3,11 @@ import type { H3Event } from 'h3'
 import { and, eq, isNull, gt } from 'drizzle-orm'
 
 /**
- * Minimal single-user OAuth 2.1 authorization server for the claude.ai connector.
+ * Minimal OAuth 2.1 authorization server for the claude.ai connector.
  * - client registration: CIMD (client_id is an https URL) or DCR (/oauth/register)
  * - authorization code + PKCE S256 only, public clients ("none")
  * - opaque tokens, stored as sha256 hashes; refresh tokens rotate, reuse revokes the family
- * The only person who can approve is whoever can log in to the app (NUXT_APP_PASSWORD).
+ * Whoever is logged in to the app approves, and the code and tokens carry their user id: Claude then acts as that user.
  */
 
 export const SCOPE = 'diary'
@@ -122,20 +122,20 @@ export function sendOAuthError(event: H3Event, e: unknown) {
   throw e
 }
 
-export async function createCode(p: { clientId: string, redirectUri: string, codeChallenge: string, scope: string, resource: string }) {
+export async function createCode(p: { userId: string, clientId: string, redirectUri: string, codeChallenge: string, scope: string, resource: string }) {
   const code = newToken('ftc')
   await useDb().insert(schema.oauthCodes).values({ ...p, codeHash: sha256(code), expiresAt: new Date(Date.now() + CODE_TTL_S * 1000) })
   return code
 }
 
-export async function issueTokens(p: { clientId: string, scope: string, resource: string, familyId?: string }) {
+export async function issueTokens(p: { userId: string, clientId: string, scope: string, resource: string, familyId?: string }) {
   const familyId = p.familyId ?? randomUUID()
   const access = newToken('fta')
   const refresh = newToken('ftr')
   const now = Date.now()
   await useDb().insert(schema.oauthTokens).values([
-    { tokenHash: sha256(access), kind: 'access', familyId, clientId: p.clientId, scope: p.scope, resource: p.resource, expiresAt: new Date(now + ACCESS_TTL_S * 1000) },
-    { tokenHash: sha256(refresh), kind: 'refresh', familyId, clientId: p.clientId, scope: p.scope, resource: p.resource, expiresAt: new Date(now + REFRESH_TTL_S * 1000) },
+    { tokenHash: sha256(access), kind: 'access', userId: p.userId, familyId, clientId: p.clientId, scope: p.scope, resource: p.resource, expiresAt: new Date(now + ACCESS_TTL_S * 1000) },
+    { tokenHash: sha256(refresh), kind: 'refresh', userId: p.userId, familyId, clientId: p.clientId, scope: p.scope, resource: p.resource, expiresAt: new Date(now + REFRESH_TTL_S * 1000) },
   ])
   return { access_token: access, token_type: 'Bearer', expires_in: ACCESS_TTL_S, refresh_token: refresh, scope: p.scope }
 }
@@ -161,5 +161,7 @@ export async function requireBearer(event: H3Event) {
   ))
   if (!row) fail('token expired or revoked')
   if (row!.resource !== mcpUrl(event)) fail('token issued for a different resource')
+  // a user removed from NUXT_USERS loses Claude access too
+  if (!isKnownUser(row!.userId)) fail('user no longer exists')
   return row!
 }

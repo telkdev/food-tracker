@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
       if (row.clientId !== clientId) throw new OAuthError('invalid_grant', 'Code was issued to another client')
       if (body.redirect_uri && String(body.redirect_uri) !== row.redirectUri) throw new OAuthError('invalid_grant', 'redirect_uri mismatch')
       if (!verifier || pkceS256(verifier) !== row.codeChallenge) throw new OAuthError('invalid_grant', 'PKCE verification failed')
-      return await issueTokens({ clientId, scope: row.scope, resource: row.resource })
+      return await issueTokens({ userId: row.userId, clientId, scope: row.scope, resource: row.resource })
     }
 
     if (body.grant_type === 'refresh_token') {
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
       if (row.expiresAt < new Date()) throw new OAuthError('invalid_grant', 'Refresh token expired')
       // rotate: revoke old refresh + old access tokens of the family, issue new pair
       await db.update(t).set({ revokedAt: new Date() }).where(and(eq(t.familyId, row.familyId), isNull(t.revokedAt)))
-      return await issueTokens({ clientId, scope: row.scope, resource: row.resource, familyId: row.familyId })
+      return await issueTokens({ userId: row.userId, clientId, scope: row.scope, resource: row.resource, familyId: row.familyId })
     }
 
     throw new OAuthError('unsupported_grant_type', 'Use authorization_code or refresh_token')
