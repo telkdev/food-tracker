@@ -1,4 +1,6 @@
 # Pings the Render free web service so it doesn't sleep (sleeping breaks claude.ai's 10 s OAuth timeouts).
+# Backup only: GitHub runs these far less often than scheduled (2 of ~60 on 2026-11-07). The server
+# keeps itself awake via server/plugins/keep-awake.ts; this mostly helps wake it up in the morning.
 # Runs 07:00–23:59 Warsaw time only, to stay well inside Render's 750 free hours/month per workspace.
 # GitHub may delay scheduled runs by several minutes, and disables them after 60 days without repo activity.
 name: keep-awake
@@ -11,4 +13,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://food-tracker-lt1f.onrender.com/api/health
+      - run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://food-tracker-lt1f.onrender.com/api/ping
