@@ -15,6 +15,13 @@
       "when": 1794044405716,
       "tag": "0001_seed_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794046663831,
+      "tag": "0002_oauth",
+      "breakpoints": true
     }
   ]
 }

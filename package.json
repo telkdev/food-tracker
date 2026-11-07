@@ -15,9 +15,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
     "db:studio": "drizzle-kit studio",
-    "db:import-artifact": "node scripts/import-artifact.mjs data/artifact-export-2026-11-07.json"
+    "db:import-artifact": "node scripts/import-artifact.mjs data/artifact-export-2026-11-07.json",
+    "test:flow": "node scripts/test-oauth-mcp-flow.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "drizzle-orm": "^0.45.4",
     "nuxt": "^4.6.4",
     "nuxt-auth-utils": "^0.6.2",

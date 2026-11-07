@@ -8,6 +8,9 @@ async function login() {
   try {
     await $fetch('/api/auth/login', { method: 'POST', body: { password: password.value } })
     await refreshSession()
+    // back to the OAuth consent screen when Claude sent us here
+    const next = String(useRoute().query.next || '')
+    if (next.startsWith('/oauth/authorize')) return navigateTo(next, { external: true })
     await navigateTo('/')
   } catch (e: any) {
     error.value = e?.data?.statusMessage || 'Login failed'

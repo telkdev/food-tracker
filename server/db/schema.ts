@@ -94,3 +94,40 @@ export const settings = pgTable('settings', {
 export type Product = typeof products.$inferSelect
 export type Entry = typeof entries.$inferSelect
 export type Settings = typeof settings.$inferSelect
+
+// ---------- OAuth (single-user authorization server for the claude.ai connector) ----------
+
+export const oauthClients = pgTable('oauth_clients', {
+  // DCR: random id we issue. CIMD: the https URL of the client's metadata document.
+  id: text('id').primaryKey(),
+  kind: text('kind', { enum: ['dcr', 'cimd'] }).notNull(),
+  name: text('name'),
+  redirectUris: text('redirect_uris').array().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const oauthCodes = pgTable('oauth_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  clientId: text('client_id').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  scope: text('scope').notNull(),
+  resource: text('resource').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+})
+
+export const oauthTokens = pgTable('oauth_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: text('token_hash').notNull().unique(),
+  kind: text('kind', { enum: ['access', 'refresh'] }).notNull(),
+  // all tokens issued from one authorization share a family; refresh-token reuse revokes the family
+  familyId: uuid('family_id').notNull(),
+  clientId: text('client_id').notNull(),
+  scope: text('scope').notNull(),
+  resource: text('resource').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('oauth_tokens_family_idx').on(t.familyId)])

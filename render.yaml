@@ -28,6 +28,10 @@ services:
         generateValue: true
       - key: NUXT_APP_PASSWORD
         sync: false # your login password, 12+ chars
+      - key: NUXT_OFF_CONTACT
+        sync: false # email for the Open Food Facts User-Agent
+      # NUXT_SITE_URL is optional: Render sets RENDER_EXTERNAL_URL, which the OAuth metadata uses.
+      # Set it if you add a custom domain (e.g. https://food.example.com).
 
 # databases:
 #   - name: food-tracker-db
