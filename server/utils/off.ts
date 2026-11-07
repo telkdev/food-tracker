@@ -98,11 +98,10 @@ export async function offSearch(query: string, limit = 10): Promise<OffProduct[]
     // strip query-language characters so user text can't change the filter
     const words = q.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).map(w => w.replace(/^[-']+/, '')).filter(Boolean).slice(0, 6)
     if (!words.length) return []
-    // Checked live 2026-11-07: Search-a-licious ignores "word*" prefixes ("twar" → 0 hits) and does not
-    // fold diacritics ("twarog" → 4 hits, "twaróg" → 10). Fuzzy terms ("twarog~") cover missing
-    // diacritics and small typos; parts of words are handled by My products search.
-    const terms = words.map(w => w.length >= 4 && !/\d/.test(w) ? `${w}~` : w)
-    const lucene = `${terms.join(' ')} countries_tags:"en:poland"`
+    // Checked live 2026-11-07 on Search-a-licious: "word*" prefixes and "word~" fuzzy both return 0 hits,
+    // and diacritics are not folded ("twarog" → 4 hits, "twaróg" → 10). So OFF gets the words as typed;
+    // parts of words, typos and missing diacritics are handled by My products search.
+    const lucene = `${words.join(' ')} countries_tags:"en:poland"`
     const json: any = await offFetch(`${searchBase}/search?q=${encodeURIComponent(lucene)}&langs=pl,en&page_size=${limit * 2}&fields=code,product_name,brands,nutriments`)
     return (json?.hits ?? []).map((h: any) => ({
       barcode: String(h.code ?? ''),
