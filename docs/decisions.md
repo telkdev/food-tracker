@@ -4,7 +4,7 @@ Checked against current docs on 2026-11-07.
 
 ## Changed from the handoff
 
-1. **Nuxt 4, not Nuxt 3.** Nuxt 4 is the current major (4.6). Nuxt 3 is in maintenance, so starting a new app on it means migrating later. Same Vue/TS skills; the visible difference is the `app/` source folder.
+1. **Nuxt 4, not Nuxt 3.** Nuxt 4 is the current major (4.6). Nuxt 3 reached end of life on 2026-07-31 (no more security fixes), so it is not an option for a new app. Same Vue/TS skills; the visible difference is the `app/` source folder.
 2. **Entry totals are Postgres generated columns** (`kcal = round(grams * kcal100 / 100, 2)` etc.). The handoff says "computed on the server"; generated columns make it impossible to write a wrong total from anywhere, including a bug in `update_entry`.
 3. **`numeric` with fixed precision, read as JS numbers.** Per-100 g `numeric(6,2)`, grams `numeric(7,1)`, totals `numeric(9,2)`. Exact decimals (no float drift in daily sums) and Drizzle's `mode: 'number'` avoids the string-typed numerics plain `numeric` gives you. `real` was rejected: 0.1 + 0.2 problems in sums.
 4. **Sanity CHECK constraints**: kcal100 0–950, macros non-negative, p+f+c ≤ 105 g per 100 g, grams 0–5000, barcode 8–14 digits. These catch the most common OFF and LLM errors (kJ typed as kcal, per-serving values typed as per-100 g).
