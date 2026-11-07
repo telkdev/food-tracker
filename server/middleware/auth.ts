@@ -1,5 +1,5 @@
 // Everything under /api is private except health and the login endpoints. /mcp has its own bearer-token guard.
-const PUBLIC = ['/api/health', '/api/ping', '/api/auth/login', '/api/_auth/session']
+const PUBLIC = ['/api/health', '/api/auth/login', '/api/_auth/session']
 
 export default defineEventHandler(async (event) => {
   const path = getRequestURL(event).pathname
