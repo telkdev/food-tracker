@@ -1,0 +1,107 @@
+/*
+ * Design tokens. "Oat & herb": warm paper neutrals, one herb-green accent,
+ * terracotta for "over", and three muted macro hues that read in both themes.
+ */
+:root {
+  color-scheme: light;
+
+  /* type */
+  --font: 'Onest Variable', 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-2xs: 0.6875rem; /* 11 */
+  --fs-xs: 0.75rem;    /* 12 */
+  --fs-sm: 0.875rem;   /* 14 */
+  --fs-md: 1rem;       /* 16 */
+  --fs-lg: 1.125rem;   /* 18 */
+  --fs-xl: 1.375rem;   /* 22 */
+  --fs-2xl: 1.75rem;   /* 28 */
+  --fs-hero: 2.75rem;  /* 44 */
+  --lh-tight: 1.1;
+  --lh: 1.4;
+  --fw-regular: 420;
+  --fw-medium: 530;
+  --fw-bold: 680;
+  --fw-black: 780;
+
+  /* spacing (4 px grid) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+
+  /* radius */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 26px; --r-pill: 999px;
+
+  /* sizes */
+  --tap: 44px;
+  --tabbar-h: 60px;
+  --page-max: 560px;
+
+  /* motion */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur-fast: 120ms;
+  --dur: 220ms;
+  --dur-slow: 420ms;
+
+  /* color: light */
+  --bg: #f4f1e9;
+  --surface: #fffdf8;
+  --surface-2: #ece7db;
+  --surface-3: #e2dccd;
+  --ink: #1f1d18;
+  --ink-2: #5b564b;
+  --ink-3: #6f695c;
+  --line: #e2dccd;
+  --line-strong: #cfc7b5;
+  --accent: #2d6a4c;
+  --accent-hover: #255a40;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcebe0;
+  --accent-soft-ink: #1e4d36;
+  --over: #b84a30;
+  --over-soft: #f6e1d9;
+  --danger: #b3261e;
+  --protein: #9a4b78;
+  --fat: #b7841c;
+  --carbs: #3f78ad;
+  --estimate: #9a5a12;
+  --estimate-soft: #f5e7d0;
+  --off: #2f6b8f;
+  --off-soft: #dceaf2;
+  --focus: #2d6a4c;
+  --scrim: rgba(28, 24, 18, .42);
+  --shadow-1: 0 1px 2px rgba(40, 33, 20, .06), 0 1px 1px rgba(40, 33, 20, .04);
+  --shadow-2: 0 10px 30px -12px rgba(40, 33, 20, .28), 0 2px 6px rgba(40, 33, 20, .06);
+  --shadow-sheet: 0 -12px 40px -10px rgba(40, 33, 20, .28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #12110f;
+    --surface: #1c1a17;
+    --surface-2: #26231f;
+    --surface-3: #312d28;
+    --ink: #f1ede4;
+    --ink-2: #b1aa9c;
+    --ink-3: #958e80;
+    --line: #2d2924;
+    --line-strong: #3d3832;
+    --accent: #7ccaa0;
+    --accent-hover: #93d6b1;
+    --accent-ink: #0d2419;
+    --accent-soft: #1f3529;
+    --accent-soft-ink: #a6e0c0;
+    --over: #f08d70;
+    --over-soft: #3a231b;
+    --danger: #ff8a80;
+    --protein: #da8ab8;
+    --fat: #e6bb5c;
+    --carbs: #82b4e6;
+    --estimate: #e7b066;
+    --estimate-soft: #352717;
+    --off: #8cc3e6;
+    --off-soft: #1b2c37;
+    --focus: #7ccaa0;
+    --scrim: rgba(0, 0, 0, .6);
+    --shadow-1: 0 1px 0 rgba(255, 255, 255, .03) inset;
+    --shadow-2: 0 12px 32px -12px rgba(0, 0, 0, .7);
+    --shadow-sheet: 0 -12px 40px -10px rgba(0, 0, 0, .7);
+  }
+}

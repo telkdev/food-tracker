@@ -191,3 +191,28 @@ export async function getProduct(id: string) {
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
   return publicProduct(row)
 }
+
+/** All of My products, for the Products screen (search needs ≥ 2 chars). */
+export async function listMyProducts(limit = 500) {
+  const rows = await useDb().select().from(schema.products).orderBy(asc(sql`lower(${schema.products.name})`)).limit(limit)
+  return rows.map(publicProduct)
+}
+
+export async function updateProduct(id: string, input: UpsertProductInput) {
+  const barcode = input.barcode ? normalizeBarcode(input.barcode) : null
+  if (input.barcode && !barcode) throw createError({ statusCode: 400, statusMessage: 'Barcode must be 8, 12, 13 or 14 digits' })
+  const [row] = await useDb().update(schema.products).set({
+    name: input.name, brand: input.brand ?? null, barcode,
+    kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
+    source: input.source, note: input.note ?? null, updatedAt: new Date(),
+  }).where(eq(schema.products.id, id)).returning().catch(dbError)
+  if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
+  return publicProduct(row)
+}
+
+/** Past entries keep their per-100 g snapshot (product_id is set to null). */
+export async function deleteProduct(id: string) {
+  const [row] = await useDb().delete(schema.products).where(eq(schema.products.id, id)).returning()
+  if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
+  return { deleted: publicProduct(row) }
+}

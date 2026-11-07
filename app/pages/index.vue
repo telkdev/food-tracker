@@ -1,161 +1,294 @@
 <script setup lang="ts">
-const MEALS = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner'], ['snack', 'Snack']] as const
-const { clear } = useUserSession()
+import type { Day, Entry, Meal, Pickable, Settings } from '~/utils/types'
+import { MEALS } from '~/utils/types'
+import { addDays, diffDays, errMsg, fmtDate, mealNow } from '~/utils/format'
 
-const date = ref<string | undefined>(undefined) // undefined = today on the server (Europe/Warsaw)
-const { data: day, refresh, error } = await useFetch('/api/day', { query: { date } })
+const { t, n, locale } = useT()
+const toast = useToast()
+const route = useRoute()
+const router = useRouter()
+const { settings } = useSettings()
+const recent = useRecent()
+const requestFetch = useRequestFetch()
 
-function shift(days: number) {
-  const base = day.value?.date
-  if (!base) return
-  const d = new Date(`${base}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  date.value = d.toISOString().slice(0, 10)
+const isIso = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
+const qdate = computed(() => isIso(route.query.date) ? route.query.date : undefined)
+
+// first paint (SSR): settings + the requested day in one round trip
+const { data: initial, error: initError, refresh: retryInit } = await useAsyncData('today-initial', async () => {
+  const [s, d] = await Promise.all([
+    requestFetch<Settings>('/api/settings'),
+    requestFetch<Day>('/api/day', { query: qdate.value ? { date: qdate.value } : {} }),
+  ])
+  return { s, d }
+})
+if (initial.value) settings.value = initial.value.s
+
+const cache = useState<Record<string, Day>>('day-cache', () => ({}))
+const day = ref<Day | null>(initial.value?.d ?? null)
+if (day.value) cache.value[day.value.date] = day.value
+const loading = ref(false)
+const loadError = ref('')
+
+const today = computed(() => settings.value?.today ?? initial.value?.d.date ?? '')
+const current = computed(() => qdate.value ?? today.value)
+
+async function load(date: string, opts: { quiet?: boolean } = {}) {
+  const cached = cache.value[date]
+  if (cached) day.value = cached
+  else if (!opts.quiet) loading.value = true
+  try {
+    const d = await $fetch<Day>('/api/day', { query: { date } })
+    cache.value[d.date] = d
+    if (current.value === d.date) { day.value = d; loadError.value = '' }
+  }
+  catch (e) { if (!opts.quiet) loadError.value = errMsg(e) }
+  finally { loading.value = false }
+}
+function prefetch(date: string) {
+  if (cache.value[date]) return
+  $fetch<Day>('/api/day', { query: { date } }).then((d) => { cache.value[d.date] = d }).catch(() => {})
+}
+function setDay(d: Day) {
+  cache.value[d.date] = d
+  if (d.date === current.value) day.value = d
 }
 
-const weekFrom = computed(() => {
-  if (!day.value) return ''
-  const d = new Date(`${day.value.date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 6)
-  return d.toISOString().slice(0, 10)
+watch(current, (d) => { if (d && d !== day.value?.date) load(d) })
+watch(() => day.value?.date, (d) => {
+  if (!d || !import.meta.client) return
+  prefetch(addDays(d, -1))
+  if (d < today.value) prefetch(addDays(d, 1))
 })
-const { data: week, refresh: refreshWeek } = await useFetch('/api/range', {
-  query: computed(() => ({ from: weekFrom.value, to: day.value?.date })),
-  immediate: false, watch: false,
-})
-watch(() => day.value?.date, (d) => { if (d) refreshWeek() }, { immediate: true })
 
+function go(date: string) {
+  if (date > today.value) return
+  router.replace({ query: date === today.value ? {} : { date } })
+}
+const shift = (k: number) => go(addDays(current.value, k))
+
+// swipe left/right on the page to change day
+let sx = 0, sy = 0, st = 0
+function touchStart(e: TouchEvent) { const p = e.touches[0]!; sx = p.clientX; sy = p.clientY; st = Date.now() }
+function touchEnd(e: TouchEvent) {
+  const p = e.changedTouches[0]!
+  const dx = p.clientX - sx, dy = p.clientY - sy
+  if (Date.now() - st < 600 && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) shift(dx < 0 ? 1 : -1)
+}
+
+// ---------- header ----------
+const rel = computed(() => today.value ? diffDays(current.value, today.value) : 0)
+const title = computed(() => {
+  if (rel.value === 0) return t('today')
+  if (rel.value === -1) return t('yesterday')
+  return fmtDate(locale.value, current.value, { weekday: 'long' })
+})
+const eyebrow = computed(() => current.value ? fmtDate(locale.value, current.value, { weekday: rel.value >= -1 ? 'long' : undefined, day: 'numeric', month: 'long' }) : '')
+
+// ---------- hero ----------
 const eaten = computed(() => day.value?.totals.kcal ?? 0)
-const goal = computed(() => day.value?.goal.kcal ?? 2500)
-const C = 2 * Math.PI * 42
-const dash = computed(() => `${Math.min(1, eaten.value / goal.value) * C} ${C}`)
-const over = computed(() => eaten.value > goal.value)
-const fmt = (n: number | null | undefined) => Math.round(n ?? 0).toLocaleString('en-US')
-const label = computed(() => day.value ? new Date(`${day.value.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '')
+const goal = computed(() => day.value?.goal.kcal ?? settings.value?.kcalGoal ?? 2500)
+const remaining = computed(() => day.value?.remaining_kcal ?? goal.value)
+const over = computed(() => remaining.value < 0)
+const anyEstimate = computed(() => !!day.value && MEALS.some(m => day.value!.meals[m].entries.some(e => e.source === 'estimate')))
+const anyOff = computed(() => !!day.value && MEALS.some(m => day.value!.meals[m].entries.some(e => e.source === 'off')))
+const macros = computed(() => {
+  const tt = day.value?.totals ?? { kcal: 0, p: 0, f: 0, c: 0 }
+  const g = day.value?.goal
+  const energy = tt.p * 4 + tt.f * 9 + tt.c * 4 || 1
+  return [
+    { key: 'p', label: t('protein'), value: tt.p, goal: g?.p ?? null, color: 'var(--protein)', share: tt.p * 4 / energy },
+    { key: 'f', label: t('fat'), value: tt.f, goal: g?.f ?? null, color: 'var(--fat)', share: tt.f * 9 / energy },
+    { key: 'c', label: t('carbs'), value: tt.c, goal: g?.c ?? null, color: 'var(--carbs)', share: tt.c * 4 / energy },
+  ]
+})
 
-const deleting = ref<string | null>(null)
-async function remove(id: string, name: string) {
-  if (deleting.value !== id) { deleting.value = id; return } // second tap confirms
-  await $fetch(`/api/entries/${id}`, { method: 'DELETE' })
-  deleting.value = null
-  await Promise.all([refresh(), refreshWeek()])
+// ---------- add ----------
+const addOpen = ref(false)
+const addMeal = ref<Meal>('breakfast')
+const initialPick = ref<Pickable | null>(null)
+const pendingPick = useState<Pickable | null>('pending-pick', () => null)
+
+function openAdd(meal?: Meal) {
+  addMeal.value = meal ?? (rel.value === 0 ? mealNow(settings.value?.timezone) : 'dinner')
+  initialPick.value = null
+  addOpen.value = true
+  if (today.value) recent.load(today.value)
 }
 
-// entries logged from a Claude chat show up when you come back to the app
+function onAdded(d: Day, created: Entry[], name: string) {
+  setDay(d)
+  recent.invalidate()
+  if (today.value) recent.load(today.value, true)
+  toast.show(t('added', { name }), {
+    action: {
+      label: t('undo'),
+      run: async () => {
+        let last: Day | null = null
+        for (const c of created) last = (await $fetch<{ day: Day }>(`/api/entries/${c.id}`, { method: 'DELETE' })).day
+        if (last) setDay(last)
+        recent.invalidate()
+      },
+    },
+  })
+}
+
+// ---------- edit / delete with undo ----------
+const editing = ref<Entry | null>(null)
+const editingMeal = ref<Meal | null>(null)
+function openEdit(e: Entry, meal: Meal) { editing.value = e; editingMeal.value = meal }
+function closeEdit() { editing.value = null }
+
+async function onSaved() {
+  closeEdit()
+  await load(current.value, { quiet: true })
+  toast.show(t('saved'))
+}
+
+async function onDelete(e: Entry) {
+  closeEdit()
+  try {
+    const res = await $fetch<{ deleted: Entry, day: Day }>(`/api/entries/${e.id}`, { method: 'DELETE' })
+    setDay(res.day)
+    toast.show(t('deleted', { name: e.name }), {
+      action: {
+        label: t('undo'),
+        run: async () => {
+          const r = await restoreEntry(res.deleted)
+          setDay(r.day)
+          toast.show(t('restored'))
+        },
+      },
+    })
+  }
+  catch (err) { toast.show(errMsg(err, t('somethingWrong'))) }
+}
+
+// ---------- lifecycle ----------
 onMounted(() => {
-  const onVis = () => { if (document.visibilityState === 'visible') { refresh(); refreshWeek() } }
+  if (today.value) setTimeout(() => recent.load(today.value), 600)
+  if (pendingPick.value) {
+    initialPick.value = pendingPick.value
+    pendingPick.value = null
+    addMeal.value = rel.value === 0 ? mealNow(settings.value?.timezone) : 'dinner'
+    addOpen.value = true
+  }
+  // entries logged from a Claude chat show up when you come back to the app
+  const onVis = async () => {
+    if (document.visibilityState !== 'visible') return
+    try { settings.value = await $fetch<Settings>('/api/settings') }
+    catch { /* offline */ }
+    load(current.value, { quiet: true })
+  }
   document.addEventListener('visibilitychange', onVis)
   onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVis))
+  // returning to the tab after other screens: show fresh data
+  if (day.value) load(day.value.date, { quiet: true })
 })
 
-async function logout() {
-  await $fetch('/api/auth/logout', { method: 'POST' })
-  await clear()
-  await navigateTo('/login')
-}
-
-const weekMax = computed(() => Math.max(goal.value * 1.2, ...(week.value?.days ?? []).map(d => d.kcal)))
-const weekDays = computed(() => {
-  if (!day.value || !weekFrom.value) return []
-  const byDate = new Map((week.value?.days ?? []).map(d => [d.date, d]))
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(`${weekFrom.value}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + i)
-    const iso = d.toISOString().slice(0, 10)
-    return { iso, dow: d.toLocaleDateString('en-GB', { weekday: 'narrow', timeZone: 'UTC' }), kcal: byDate.get(iso)?.kcal ?? 0 }
-  })
-})
+useHead({ title: () => `${title.value} · ${t('appName')}` })
 </script>
 
 <template>
-  <main class="day">
-    <header class="bar">
-      <button class="icon" aria-label="Previous day" @click="shift(-1)">‹</button>
-      <div class="title"><b>{{ label }}</b><button v-if="date" class="link" @click="date = undefined">Today</button></div>
-      <button class="icon" aria-label="Next day" @click="shift(1)">›</button>
+  <div class="today" @touchstart.passive="touchStart" @touchend.passive="touchEnd">
+    <header class="top">
+      <div class="when">
+        <p class="eyebrow">{{ eyebrow }}</p>
+        <div class="trow">
+          <h1>{{ title }}</h1>
+          <button v-if="rel !== 0" type="button" class="todaypill" @click="go(today)">{{ t('today') }}</button>
+        </div>
+      </div>
+      <div class="nav">
+        <button type="button" class="icon-btn" :aria-label="t('prevDay')" @click="shift(-1)"><Icon name="left" /></button>
+        <button type="button" class="icon-btn" :aria-label="t('nextDay')" :disabled="rel >= 0" @click="shift(1)"><Icon name="right" /></button>
+        <NuxtLink to="/settings" class="icon-btn" :aria-label="t('settings')"><Icon name="settings" /></NuxtLink>
+      </div>
     </header>
 
-    <p v-if="error" class="err">Couldn't load the day: {{ error.statusMessage || error.message }}</p>
+    <div v-if="initError && !day" class="card errcard">
+      <p>{{ t('loadFailed', { msg: initError.statusMessage || initError.message }) }}</p>
+      <button class="btn" @click="retryInit()">{{ t('retry') }}</button>
+    </div>
+    <p v-else-if="loadError" class="loaderr">{{ t('loadFailed', { msg: loadError }) }}</p>
 
     <template v-if="day">
-      <section class="summary">
-        <svg viewBox="0 0 100 100" class="ring" role="img" :aria-label="`${fmt(eaten)} of ${fmt(goal)} kcal`">
-          <circle cx="50" cy="50" r="42" fill="none" stroke="var(--line)" stroke-width="10" />
-          <circle cx="50" cy="50" r="42" fill="none" :stroke="over ? 'var(--warn)' : 'var(--accent)'" stroke-width="10" stroke-linecap="round" transform="rotate(-90 50 50)" :stroke-dasharray="dash" />
-        </svg>
-        <div>
-          <div class="big">{{ fmt(Math.abs(day.remaining_kcal)) }}</div>
-          <div class="muted">{{ over ? 'kcal over' : 'kcal left' }} · {{ fmt(eaten) }} / {{ fmt(goal) }}</div>
-        </div>
-      </section>
-      <section class="macros">
-        <div>Protein<b>{{ fmt(day.totals.p) }}<small v-if="day.goal.p"> / {{ day.goal.p }}</small> g</b></div>
-        <div>Fat<b>{{ fmt(day.totals.f) }}<small v-if="day.goal.f"> / {{ day.goal.f }}</small> g</b></div>
-        <div>Carbs<b>{{ fmt(day.totals.c) }}<small v-if="day.goal.c"> / {{ day.goal.c }}</small> g</b></div>
-      </section>
+      <div class="content" :class="{ stale: loading }">
+        <section class="hero card" :aria-label="t('kcalLeft')">
+          <div class="hero-top">
+            <ProgressRing :value="eaten" :max="goal" :size="152" :stroke="12" :label="`${n(eaten)} / ${n(goal)} ${t('kcal')}`">
+              <span class="big num" :class="{ over }"><span v-if="anyEstimate" class="approx">≈</span>{{ n(Math.abs(remaining)) }}</span>
+              <span class="biglbl">{{ over ? t('kcalOver') : t('kcalLeft') }}</span>
+            </ProgressRing>
+            <dl class="stats">
+              <div><dt>{{ t('eaten') }}</dt><dd class="num">{{ n(eaten) }}</dd></div>
+              <div><dt>{{ t('goal') }}</dt><dd class="num">{{ n(goal) }}</dd></div>
+            </dl>
+          </div>
+          <div class="macros">
+            <MacroBar v-for="m in macros" :key="m.key" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" />
+          </div>
+        </section>
 
-      <section v-for="[key, name] in MEALS" :key="key" class="meal">
-        <h2><span>{{ name }}</span><span>{{ fmt(day.meals[key].totals.kcal) }} kcal</span></h2>
-        <p v-if="!day.meals[key].entries.length" class="muted empty">Nothing logged</p>
-        <div v-for="e in day.meals[key].entries" :key="e.id" class="entry">
-          <div class="name">{{ e.name }}</div>
-          <div class="kcal">{{ fmt(e.kcal) }}</div>
-          <div class="meta"><span>{{ e.grams }} g</span><span class="badge" :class="e.source">{{ e.source }}</span><span v-if="e.note" class="note">{{ e.note }}</span></div>
-          <button class="del" :class="{ armed: deleting === e.id }" @click="remove(e.id, e.name)">{{ deleting === e.id ? 'Delete?' : '×' }}</button>
-        </div>
-      </section>
+        <MealSection v-for="m in MEALS" :key="m" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" />
 
-      <section class="week">
-        <h2><span>Last 7 days</span><span v-if="week?.avg_kcal_logged_days">avg {{ fmt(week.avg_kcal_logged_days) }}</span></h2>
-        <div class="bars">
-          <button v-for="d in weekDays" :key="d.iso" class="col" :class="{ cur: d.iso === day.date }" @click="date = d.iso">
-            <span class="b" :style="{ height: `${(d.kcal / weekMax) * 100}%` }" :class="{ over: d.kcal > goal, none: !d.kcal }" />
-            <span class="goal" :style="{ bottom: `calc(18px + (100% - 18px) * ${goal / weekMax})` }" />
-            <small>{{ d.dow }}</small>
-          </button>
-        </div>
-      </section>
+        <p v-if="anyOff" class="attribution foot">{{ t('offAttribution') }}</p>
+      </div>
     </template>
 
-    <footer class="foot">
-      <span class="muted">Product data © Open Food Facts contributors (ODbL)</span>
-      <button class="link" @click="logout">Log out</button>
-    </footer>
-  </main>
+    <button type="button" class="fab" @click="openAdd()">
+      <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
+    </button>
+
+    <AddFoodSheet :open="addOpen" :date="current" :meal="addMeal" :initial-pick="initialPick" @close="addOpen = false" @added="onAdded" />
+    <EditEntrySheet :entry="editing" :meal="editingMeal" @close="closeEdit" @saved="onSaved" @delete="onDelete" />
+  </div>
 </template>
 
 <style scoped>
-.day { display: grid; gap: 14px; }
-.bar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
-.title { text-align: center; display: grid; justify-items: center; }
-.title b { font-size: 1.15rem; }
-.icon { font-size: 1.4rem; padding: 4px 0; }
-.link { border: 0; background: none; color: var(--accent); padding: 2px 0; font-size: .9rem; cursor: pointer; }
-.err { color: var(--warn); }
-.summary { display: grid; grid-template-columns: 100px 1fr; gap: 16px; align-items: center; }
-.ring { width: 100px; height: 100px; }
-.big { font-size: 2.2rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; color: var(--muted); font-size: .8rem; }
-.macros b { display: block; color: var(--fg); font-size: 1rem; font-variant-numeric: tabular-nums; }
-.macros small { color: var(--muted); font-weight: 400; }
-.meal h2, .week h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; justify-content: space-between; margin: 0 0 6px; }
-.meal { display: grid; gap: 6px; }
-.empty { margin: 0; font-size: .85rem; }
-.entry { display: grid; grid-template-columns: 1fr auto 36px; gap: 2px 10px; align-items: center; background: var(--card); border-radius: 12px; padding: 8px 6px 8px 12px; }
-.name { min-width: 0; overflow-wrap: anywhere; }
-.kcal { font-weight: 600; font-variant-numeric: tabular-nums; }
-.meta { grid-column: 1 / 3; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: .78rem; flex-wrap: wrap; }
-.del { grid-row: 1 / 3; grid-column: 3; padding: 4px; border: 0; background: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; }
-.del.armed { color: var(--warn); font-size: .75rem; }
-.badge { font-family: ui-monospace, monospace; font-size: .7rem; padding: 1px 6px; border-radius: 6px; background: #16a34a22; color: var(--accent); }
-.badge.estimate, .badge.lifesum { background: #d9770622; color: #d97706; }
-.note { font-style: italic; }
-.bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; height: 110px; margin-top: 6px; }
-.col { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding: 0 0 18px; border: 0; background: none; cursor: pointer; }
-.col .b { width: 70%; background: var(--accent); border-radius: 6px 6px 2px 2px; min-height: 2px; }
-.col .b.over { background: var(--warn); }
-.col .b.none { background: var(--line); }
-.col .goal { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--muted); }
-.col small { position: absolute; bottom: 0; color: var(--muted); }
-.col.cur small { color: var(--fg); font-weight: 700; }
-.foot .link { white-space: nowrap; }
-.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .75rem; padding-top: 8px; }
+.today { display: grid; gap: var(--s-4); min-height: 70dvh; }
+.top { display: flex; align-items: flex-end; gap: var(--s-2); padding-top: var(--s-2); }
+.when { flex: 1; min-width: 0; }
+.eyebrow { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); }
+.eyebrow::first-letter, .trow h1::first-letter { text-transform: uppercase; }
+.trow { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.trow h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
+.todaypill {
+  min-height: 32px; padding: 0 var(--s-3); border: 0; border-radius: var(--r-pill);
+  background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-bold); position: relative;
+}
+.todaypill::after { content: ''; position: absolute; inset: -6px -2px; }
+.nav { display: flex; gap: 0; margin-right: calc(-1 * var(--s-2)); }
+.nav .icon-btn:disabled { opacity: .3; }
+
+.content { display: grid; gap: var(--s-3); transition: opacity var(--dur); }
+.content.stale { opacity: .55; }
+
+.hero { padding: var(--s-5) var(--s-4) var(--s-4); display: grid; gap: var(--s-5); }
+.hero-top { display: flex; align-items: center; gap: var(--s-5); }
+.big .approx { font-size: .6em; font-weight: var(--fw-bold); color: var(--ink-2); margin-right: 1px; vertical-align: .18em; }
+.big { font-size: 2rem; font-weight: var(--fw-black); letter-spacing: -0.03em; line-height: 1; }
+.big.over { color: var(--over); }
+.biglbl { font-size: var(--fs-xs); color: var(--ink-2); margin-top: 4px; font-weight: var(--fw-medium); }
+.stats { flex: 1; min-width: 0; margin: 0; display: grid; gap: var(--s-3); }
+.stats div { display: grid; gap: 1px; }
+.stats dt { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
+.stats dd { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+.macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+
+.errcard { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
+.loaderr { color: var(--danger); font-size: var(--fs-sm); }
+.foot { text-align: center; padding-top: var(--s-2); }
+
+.fab {
+  position: fixed; z-index: 30;
+  right: max(var(--s-4), calc((100vw - var(--page-max)) / 2 + var(--s-4)));
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s-4));
+  display: inline-flex; align-items: center; gap: var(--s-2); height: 56px; padding: 0 var(--s-5) 0 var(--s-4);
+  border: 0; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
+  font-weight: var(--fw-bold); font-size: var(--fs-md); box-shadow: var(--shadow-2);
+  transition: transform var(--dur-fast);
+}
+.fab:active { transform: scale(.96); }
+@media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
 </style>
