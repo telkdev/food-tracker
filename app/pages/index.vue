@@ -236,6 +236,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
       </div>
     </template>
 
+    <!-- room for the floating button so the last meal (Snack) is never under it -->
+    <div class="fab-room" aria-hidden="true" />
     <button type="button" class="fab" @click="openAdd()">
       <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
     </button>
@@ -290,5 +292,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
   transition: transform var(--dur-fast);
 }
 .fab:active { transform: scale(.96); }
+/* FAB is 56px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 56px more leaves a 16px gap */
+.fab-room { height: 56px; }
 @media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
 </style>
