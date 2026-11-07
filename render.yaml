@@ -2,6 +2,7 @@
 # Plan choices are deliberate, see docs/decisions.md "Hosting":
 #  - web: free for now (steps 1-4). Free instances sleep after 15 min and take ~1 min to wake;
 #    claude.ai gives OAuth discovery/token endpoints 10 s, so switch to `starter` before step 5 (MCP).
+#    Until then the app pings itself 07:00–24:00 Warsaw (server/plugins/keepAwake.ts, env KEEP_AWAKE_HOURS).
 #    Free plan has no preDeployCommand, so migrations run at start (idempotent). On starter, move
 #    `npm run db:migrate` back to preDeployCommand.
 #  - database: not on Render free (deleted 30 days after creation). DATABASE_URL points at
