@@ -1,7 +1,9 @@
 # Render Blueprint. Region: Frankfurt (closest to Warsaw).
-# Plan choices are deliberate, see README "Hosting":
-#  - web: starter (always on). Free instances sleep after 15 min and take ~1 min to wake;
-#    claude.ai gives OAuth discovery/token endpoints 10 s, so a sleeping server breaks the connector.
+# Plan choices are deliberate, see docs/decisions.md "Hosting":
+#  - web: free for now (steps 1-4). Free instances sleep after 15 min and take ~1 min to wake;
+#    claude.ai gives OAuth discovery/token endpoints 10 s, so switch to `starter` before step 5 (MCP).
+#    Free plan has no preDeployCommand, so migrations run at start (idempotent). On starter, move
+#    `npm run db:migrate` back to preDeployCommand.
 #  - database: not on Render free (deleted 30 days after creation). DATABASE_URL points at
 #    Neon (free, no expiry) by default; to use Render Postgres instead, uncomment the
 #    `databases` block and the fromDatabase line.
@@ -10,10 +12,9 @@ services:
     name: food-tracker
     runtime: node
     region: frankfurt
-    plan: starter
+    plan: free
     buildCommand: npm ci && npm run build
-    preDeployCommand: npm run db:migrate
-    startCommand: node .output/server/index.mjs
+    startCommand: npm run db:migrate && node .output/server/index.mjs
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:

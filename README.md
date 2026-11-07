@@ -32,4 +32,4 @@ Other scripts: `npm test`, `npm run typecheck`, `npm run db:generate` (after edi
 
 1. Create a Neon project (region `aws-eu-central-1`, Frankfurt) and copy the pooled connection string, or uncomment the Render Postgres block in `render.yaml`.
 2. Render → New → Blueprint → this repo. Fill `DATABASE_URL` and `NUXT_APP_PASSWORD` when asked. `NUXT_APP_SECRET` is generated.
-3. Migrations run on every deploy before the new version goes live.
+3. Migrations run on every start (free plan has no pre-deploy step; they are idempotent).

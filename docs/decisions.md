@@ -21,6 +21,7 @@ Checked against current docs on 2026-11-07.
 
 - **Render free web service is not usable for MCP.** It sleeps after 15 min and takes ~1 min to wake; claude.ai gives OAuth discovery/registration/token endpoints 10 s. Use `starter` (always on).
 - **Render free Postgres is deleted** 30 days after creation (+14 days grace), no backups. Use Neon free (no expiry, scale-to-zero, PITR window) or Render `basic-256mb` (~$6/mo, backups).
+- **Chosen for now (2026-11-07): all free.** Render free web + Neon free Postgres (also $0, but doesn't expire, unlike Render free Postgres). Migrations run in `startCommand`, since the free plan has no pre-deploy step. Upgrade the web service to `starter` before connecting MCP in step 5.
 - Region: Frankfurt for both.
 
 ## Auth (now and later)
