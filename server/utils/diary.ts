@@ -1,5 +1,6 @@
-import { and, asc, between, eq, ilike, inArray, or, sql } from 'drizzle-orm'
-import type { Entry, Product } from '../db/schema'
+import { and, asc, between, desc, eq, ilike, inArray, lte, or, sql } from 'drizzle-orm'
+import type { Entry, Product, Settings } from '../db/schema'
+import { computeStreak, type Streak } from './streak'
 
 const r1 = (n: number) => Math.round(n * 10) / 10
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'] as const
@@ -36,13 +37,36 @@ function dbError(e: any): never {
   throw e
 }
 
+/** Current day streak as of today (see server/utils/streak.ts for the rules). */
+export async function getStreak(uid: string, s?: Settings): Promise<Streak> {
+  s ??= await getSettings(uid)
+  const today = localDate(s.timezone)
+  const e = schema.entries
+  const rows = await useDb().selectDistinct({ date: e.date }).from(e)
+    .where(and(eq(e.userId, uid), lte(e.date, today))).orderBy(desc(e.date))
+  return computeStreak(rows.map(r => r.date), today, { days: s.streakCarryDays, until: s.streakCarryUntil })
+}
+
+export async function setStreakCarry(uid: string, c: StreakCarryInput) {
+  await getSettings(uid)
+  const [row] = await useDb().update(schema.settings)
+    .set({ streakCarryDays: c.until ? c.days : 0, streakCarryUntil: c.days ? c.until : null })
+    .where(eq(schema.settings.userId, uid)).returning().catch(dbError)
+  return { carry: { days: row!.streakCarryDays, until: row!.streakCarryUntil }, streak: await getStreak(uid, row!) }
+}
+
 export async function getDay(uid: string, date?: string) {
   const s = await getSettings(uid)
   const day = date ?? localDate(s.timezone)
-  const rows = await useDb().select().from(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.date, day))).orderBy(asc(schema.entries.loggedAt))
+  const [rows, streak] = await Promise.all([
+    useDb().select().from(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.date, day))).orderBy(asc(schema.entries.loggedAt)),
+    getStreak(uid, s),
+  ])
   const t = totals(rows)
   return {
     date: day,
+    // always as of today, whatever day is shown
+    streak,
     goal: { kcal: s.kcalGoal, p: s.pGoal, f: s.fGoal, c: s.cGoal },
     totals: t,
     // kcal from guessed entries (source "estimate"): how approximate the day total is
