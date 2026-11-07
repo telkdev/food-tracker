@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
-  check, date, index, integer, numeric, pgEnum, pgTable, smallint, text, timestamp, uuid,
+  boolean, check, date, index, integer, numeric, pgEnum, pgTable, smallint, text, timestamp, uuid,
 } from 'drizzle-orm/pg-core'
 
 /**
@@ -131,3 +131,18 @@ export const oauthTokens = pgTable('oauth_tokens', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [index('oauth_tokens_family_idx').on(t.familyId)])
+
+// ---------- MCP usage log (how much context the connector adds to Claude chats) ----------
+
+export const mcpCalls = pgTable('mcp_calls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  tool: text('tool').notNull(),
+  ok: boolean('ok').notNull(),
+  inChars: integer('in_chars').notNull(),
+  outChars: integer('out_chars').notNull(),
+  // rough: ASCII ≈ 3.5 chars/token, other scripts (Cyrillic, Polish diacritics) ≈ 2 chars/token
+  inTokens: integer('in_tokens').notNull(),
+  outTokens: integer('out_tokens').notNull(),
+  ms: integer('ms').notNull(),
+}, t => [index('mcp_calls_at_idx').on(t.at)])

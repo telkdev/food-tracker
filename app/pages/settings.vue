@@ -48,6 +48,9 @@ async function logout() {
 }
 // macro → kcal hint so the goals add up
 const macroKcal = computed(() => (opt(f.p) ?? 0) * 4 + (opt(f.f) ?? 0) * 9 + (opt(f.c) ?? 0) * 4)
+interface Usage { today: { calls: number, tokens: number }, total: { calls: number, tokens: number }, by_tool: { tool: string, calls: number, errors: number, tokens: number, avg_tokens: number, avg_ms: number }[] }
+const { data: usage } = await useAsyncData('usage', () => requestFetch<Usage>('/api/usage', { query: { days: 7 } }))
+const nf = (n: number) => n.toLocaleString(locale.value === 'ru' ? 'ru-RU' : 'en-US')
 useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 </script>
 
@@ -90,6 +93,17 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       </div>
     </section>
 
+    <section class="card group">
+      <h2 class="section-title">{{ t('usageTitle') }}</h2>
+      <p v-if="!usage || !usage.total.calls" class="hint">{{ t('usageNone') }}</p>
+      <template v-else>
+        <div class="line"><span class="ll">{{ t('usageToday') }}</span><span class="num">{{ t('usageCalls', { n: usage.today.calls }) }} · {{ t('usageTokens', { n: nf(usage.today.tokens) }) }}</span></div>
+        <div class="line"><span class="ll">{{ t('usageWeek') }}</span><span class="num">{{ t('usageCalls', { n: usage.total.calls }) }} · {{ t('usageTokens', { n: nf(usage.total.tokens) }) }}</span></div>
+        <div v-for="r in usage.by_tool" :key="r.tool" class="line tool"><code>{{ r.tool }}</code><span class="num">{{ r.calls }}× · {{ t('usageAvg', { n: nf(r.avg_tokens) }) }}<template v-if="r.errors"> · <span class="err">{{ r.errors }}✗</span></template></span></div>
+      </template>
+      <p class="hint">{{ t('usageNote') }}</p>
+    </section>
+
     <button type="button" class="btn btn-block logout" @click="logout"><Icon name="logout" :size="20" />{{ t('logout') }}</button>
 
     <p class="attribution about">{{ t('appName') }} · {{ locale }} · {{ t('offAttribution') }}</p>
@@ -115,4 +129,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 .err { color: var(--danger); font-size: var(--fs-sm); }
 .logout { color: var(--danger); background: var(--surface); }
 .about { text-align: center; }
+.num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--fs-sm); text-align: right; }
+.tool { min-height: 40px; }
+.tool code { font-size: var(--fs-sm); }
 </style>
