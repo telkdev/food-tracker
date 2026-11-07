@@ -1,0 +1,11 @@
+{
+  "settings": { "kcalGoal": 2500 },
+  "products": [],
+  "entries": [
+    { "date": "2026-11-07", "meal": "breakfast", "name": "Цельнозерновой хлеб", "grams": 50, "per100": { "kcal": 260, "p": 9, "f": 3.5, "c": 43 }, "kcal": 130, "p": 4.5, "f": 1.8, "c": 21.5, "source": "lifesum" },
+    { "date": "2026-11-07", "meal": "breakfast", "name": "Варёное яйцо", "grams": 50, "per100": { "kcal": 155, "p": 12.6, "f": 10.6, "c": 1.1 }, "kcal": 77, "p": 6.3, "f": 5.3, "c": 0.6, "source": "lifesum" },
+    { "date": "2026-11-07", "meal": "breakfast", "name": "Яичный белок", "grams": 62, "per100": { "kcal": 52, "p": 10.9, "f": 0.2, "c": 0.7 }, "kcal": 32, "p": 6.8, "f": 0.1, "c": 0.4, "source": "lifesum" },
+    { "date": "2026-11-07", "meal": "breakfast", "name": "Колбаски для гриля", "grams": 42, "per100": { "kcal": 333, "p": 13, "f": 30, "c": 2 }, "kcal": 140, "p": 5.5, "f": 12.6, "c": 0.8, "source": "lifesum", "note": "macros approximate, replace with label values" },
+    { "date": "2026-11-07", "meal": "breakfast", "name": "Тирамису", "grams": 50, "per100": { "kcal": 283, "p": 4.6, "f": 17, "c": 26 }, "kcal": 141, "p": 2.3, "f": 8.5, "c": 13, "source": "estimate", "note": "grams estimated from kcal" }
+  ]
+}

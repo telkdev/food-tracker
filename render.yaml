@@ -1,0 +1,36 @@
+# Render Blueprint. Region: Frankfurt (closest to Warsaw).
+# Plan choices are deliberate, see README "Hosting":
+#  - web: starter (always on). Free instances sleep after 15 min and take ~1 min to wake;
+#    claude.ai gives OAuth discovery/token endpoints 10 s, so a sleeping server breaks the connector.
+#  - database: not on Render free (deleted 30 days after creation). DATABASE_URL points at
+#    Neon (free, no expiry) by default; to use Render Postgres instead, uncomment the
+#    `databases` block and the fromDatabase line.
+services:
+  - type: web
+    name: food-tracker
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npm run db:migrate
+    startCommand: node .output/server/index.mjs
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false # paste the Neon pooled connection string (…?sslmode=require)
+      # - key: DATABASE_URL
+      #   fromDatabase: { name: food-tracker-db, property: connectionString }
+      - key: NUXT_APP_SECRET
+        generateValue: true
+      - key: NUXT_APP_PASSWORD
+        sync: false # your login password, 12+ chars
+
+# databases:
+#   - name: food-tracker-db
+#     plan: basic-256mb   # ~$6/mo + storage; has backups. Never `free` for a diary.
+#     region: frankfurt
+#     postgresMajorVersion: "17"
+#     ipAllowList: []      # only reachable from Render services

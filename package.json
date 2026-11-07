@@ -1,0 +1,34 @@
+{
+  "name": "food-tracker",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "node .output/server/index.mjs",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:studio": "drizzle-kit studio",
+    "db:import-artifact": "node scripts/import-artifact.mjs data/artifact-export-2026-11-07.json"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "nuxt": "^4.6.4",
+    "nuxt-auth-utils": "^0.6.2",
+    "postgres": "^4.1.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  }
+}
