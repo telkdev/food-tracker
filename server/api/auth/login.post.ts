@@ -15,7 +15,9 @@ export default defineEventHandler(async (event) => {
   }
   if (!timingSafeEqual(digest(password), digest(expected))) {
     await new Promise(r => setTimeout(r, 800)) // cheap brute-force slowdown
-    throw createError({ statusCode: 401, statusMessage: 'Wrong password' })
+    // Lengths only (never values) to debug copy-paste problems; the length check tells nothing useful to an attacker.
+    console.warn(`[login] wrong password: got ${norm(password).length} chars, expected ${norm(expected).length}`)
+    throw createError({ statusCode: 401, statusMessage: `Wrong password (you entered ${norm(password).length} characters)` })
   }
   await setUserSession(event, { user: { id: 'owner' }, loggedInAt: Date.now() })
   return { ok: true }
