@@ -2,12 +2,15 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 
 const body = z.object({ password: z.string().min(1).max(200) })
-const digest = (s: string) => createHash('sha256').update(s).digest()
+// Normalise so a trailing space/newline pasted into Render, or different Unicode forms of Cyrillic
+// letters (phone vs desktop keyboard), don't make the right password fail.
+const norm = (s: string) => s.normalize('NFC').trim()
+const digest = (s: string) => createHash('sha256').update(norm(s)).digest()
 
 export default defineEventHandler(async (event) => {
   const { password } = await readValidatedBody(event, body.parse)
   const expected = useRuntimeConfig(event).appPassword
-  if (!expected || expected.length < 12) {
+  if (!expected || norm(expected).length < 12) {
     throw createError({ statusCode: 500, statusMessage: 'NUXT_APP_PASSWORD is not configured (min 12 chars)' })
   }
   if (!timingSafeEqual(digest(password), digest(expected))) {
