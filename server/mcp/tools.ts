@@ -59,6 +59,7 @@ export function buildMcpServer(uid: string) {
       'Prefer, in order: a usual meal (log_meal), a frequent or saved product (product_id), search_products, and only then your own estimate.',
       'Ask for grams instead of guessing; a guess must be logged with source "estimate".',
       'When he states a lasting habit or corrects you ("I always weigh rice cooked", "my mug is 300 ml"), save it with set_preference.',
+      'The server sleeps when idle and takes up to ~60 s to wake. If a call times out or fails with a connection or 5xx error, tell the user the diary is waking up, wait ~30 s and retry the same call, up to 3 times, before reporting a failure. Retrying a log is safe only if the failed call returned nothing: check get_day first so nothing is logged twice.',
     ].join(' ') },
   )
 
@@ -73,6 +74,7 @@ export function buildMcpServer(uid: string) {
       'source: "label" (read from a package photo), "off" (Open Food Facts), "generic" (standard values for a generic food), "estimate" (you guessed grams or values, e.g. plate photo).',
       'Pass meal explicitly when the user said it; otherwise it is inferred from the time. Pass date when the user means another day (e.g. logging last night\'s dinner after midnight).',
       'Returns the created entries (g = grams) and the updated day totals.',
+      'If it times out (server waking), check get_day before retrying so nothing is logged twice.',
     ].join(' '),
     inputSchema: {
       date: date.optional(),
@@ -93,7 +95,7 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('get_context', {
     title: 'Get memory',
-    description: 'Call once at the start of a food conversation. Returns: prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it.',
+    description: 'Call once at the start of a food conversation. Returns: prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it. If this first call times out or errors, the server is waking from sleep (up to ~60 s): wait ~30 s and retry up to 3 times before giving up.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, tool('get_context', async () => {
