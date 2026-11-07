@@ -45,6 +45,8 @@ export async function getDay(date?: string) {
     date: day,
     goal: { kcal: s.kcalGoal, p: s.pGoal, f: s.fGoal, c: s.cGoal },
     totals: t,
+    // kcal from guessed entries (source "estimate"): how approximate the day total is
+    estimate_kcal: totals(rows.filter(r => r.source === 'estimate')).kcal,
     remaining_kcal: r1(s.kcalGoal - t.kcal),
     meals: Object.fromEntries(MEALS.map((m) => {
       const list = rows.filter(r => r.meal === m)

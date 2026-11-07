@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
-  boolean, check, date, index, integer, numeric, pgEnum, pgTable, smallint, text, timestamp, uuid,
+  boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, smallint, text, timestamp, uuid,
 } from 'drizzle-orm/pg-core'
 
 /**
@@ -91,9 +91,38 @@ export const settings = pgTable('settings', {
   check('settings_kcal_goal_range', sql`${t.kcalGoal} between 800 and 8000`),
 ])
 
+// ---------- Memory for Claude: preferences and "my usual" meals ----------
+
+/** Free-text rules Claude must follow (how food is weighed, oil/sauce habits...). Returned by get_context. */
+export const preferences = pgTable('preferences', {
+  key: text('key').primaryKey(),
+  text: text('text').notNull(),
+  ...timestamps,
+}, t => [check('preferences_key_slug', sql`${t.key} ~ '^[a-z0-9_]{1,40}$'`)])
+
+export type SavedMealItem = {
+  name: string
+  grams: number
+  product_id: string | null
+  // snapshot, used when the product was deleted or for items without a product
+  per100: { kcal: number, p: number, f: number, c: number }
+  source: 'label' | 'off' | 'generic' | 'estimate' | 'lifesum'
+}
+
+/** A meal the user eats often ("my usual breakfast"), logged in one go. */
+export const savedMeals = pgTable('saved_meals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  defaultMeal: mealEnum('default_meal'),
+  items: jsonb('items').$type<SavedMealItem[]>().notNull(),
+  ...timestamps,
+}, t => [index('saved_meals_name_lower_idx').on(sql`lower(${t.name})`)])
+
 export type Product = typeof products.$inferSelect
 export type Entry = typeof entries.$inferSelect
 export type Settings = typeof settings.$inferSelect
+export type SavedMeal = typeof savedMeals.$inferSelect
+export type Preference = typeof preferences.$inferSelect
 
 // ---------- OAuth (single-user authorization server for the claude.ai connector) ----------
 

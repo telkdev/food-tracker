@@ -9,6 +9,7 @@ const route = useRoute()
 const router = useRouter()
 const { settings } = useSettings()
 const recent = useRecent()
+const usual = useSavedMeals()
 const requestFetch = useRequestFetch()
 
 const isIso = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
@@ -91,6 +92,11 @@ const goal = computed(() => day.value?.goal.kcal ?? settings.value?.kcalGoal ?? 
 const remaining = computed(() => day.value?.remaining_kcal ?? goal.value)
 const over = computed(() => remaining.value < 0)
 const anyEstimate = computed(() => !!day.value && MEALS.some(m => day.value!.meals[m].entries.some(e => e.source === 'estimate')))
+// share of the day's kcal that comes from guesses: how much to trust the total
+const estimatePct = computed(() => {
+  const est = day.value?.estimate_kcal ?? 0
+  return est > 0 && eaten.value > 0 ? Math.round(est / eaten.value * 100) : 0
+})
 const anyOff = computed(() => !!day.value && MEALS.some(m => day.value!.meals[m].entries.some(e => e.source === 'off')))
 const macros = computed(() => {
   const tt = day.value?.totals ?? { kcal: 0, p: 0, f: 0, c: 0 }
@@ -131,6 +137,17 @@ function onAdded(d: Day, created: Entry[], name: string) {
       },
     },
   })
+}
+
+// ---------- save a meal as "my usual" ----------
+async function saveUsual(meal: Meal) {
+  const name = window.prompt(t('usualNamePrompt'), t(meal))?.trim()
+  if (!name) return
+  try {
+    const m = await usual.saveFromDiary(name, current.value, meal)
+    toast.show(t('usualSaved', { name: m.name }))
+  }
+  catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
 }
 
 // ---------- edit / delete with undo ----------
@@ -223,6 +240,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
             <dl class="stats">
               <div><dt>{{ t('eaten') }}</dt><dd class="num">{{ n(eaten) }}</dd></div>
               <div><dt>{{ t('goal') }}</dt><dd class="num">{{ n(goal) }}</dd></div>
+              <p v-if="estimatePct" class="estpct">{{ t('estimateShare', { n: estimatePct }) }}</p>
             </dl>
           </div>
           <div class="macros">
@@ -230,7 +248,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
           </div>
         </section>
 
-        <MealSection v-for="m in MEALS" :key="m" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" />
+        <MealSection v-for="m in MEALS" :key="m" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" @save="saveUsual" />
 
         <p v-if="anyOff" class="attribution foot">{{ t('offAttribution') }}</p>
       </div>
@@ -276,6 +294,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .stats div { display: grid; gap: 1px; }
 .stats dt { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
 .stats dd { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+.estpct { margin: 0; font-size: var(--fs-xs); color: var(--estimate); font-weight: var(--fw-medium); }
 .macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
 
 .errcard { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }

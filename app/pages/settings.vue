@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Settings } from '~/utils/types'
+import type { Preference, SavedMeal, Settings } from '~/utils/types'
 import { errMsg } from '~/utils/format'
 import type { LangPref } from '~/composables/useI18n'
 
@@ -50,6 +50,36 @@ async function logout() {
 const macroKcal = computed(() => (opt(f.p) ?? 0) * 4 + (opt(f.f) ?? 0) * 9 + (opt(f.c) ?? 0) * 4)
 interface Usage { today: { calls: number, tokens: number }, total: { calls: number, tokens: number }, by_tool: { tool: string, calls: number, errors: number, tokens: number, avg_tokens: number, avg_ms: number }[] }
 const { data: usage } = await useAsyncData('usage', () => requestFetch<Usage>('/api/usage', { query: { days: 7 } }))
+// ---------- memory for Claude ----------
+const { data: prefs, refresh: refreshPrefs } = await useAsyncData('prefs', () => requestFetch<Preference[]>('/api/preferences'))
+const { data: meals, refresh: refreshMeals } = await useAsyncData('meals-page', () => requestFetch<SavedMeal[]>('/api/meals'))
+const usual = useSavedMeals()
+const np = reactive({ key: '', text: '' })
+const keyBad = computed(() => !/^[a-z0-9_]{1,40}$/.test(np.key))
+const memErr = ref('')
+async function savePref(key: string, text: string) {
+  memErr.value = ''
+  try {
+    await $fetch(`/api/preferences/${key}`, { method: 'PUT', body: { text } })
+    await refreshPrefs()
+    toast.show(t('saved'))
+    return true
+  }
+  catch (e) { memErr.value = errMsg(e, t('somethingWrong')) }
+}
+async function addPref() {
+  if (keyBad.value || !np.text.trim()) return
+  if (await savePref(np.key, np.text.trim())) Object.assign(np, { key: '', text: '' })
+}
+async function delPref(key: string) {
+  try { await $fetch(`/api/preferences/${key}`, { method: 'DELETE' }); await refreshPrefs() }
+  catch (e) { memErr.value = errMsg(e, t('somethingWrong')) }
+}
+async function delMeal(m: SavedMeal) {
+  try { await usual.remove(m.id); await refreshMeals(); toast.show(t('usualDeleted', { name: m.name })) }
+  catch (e) { memErr.value = errMsg(e, t('somethingWrong')) }
+}
+
 const nf = (n: number) => n.toLocaleString(locale.value === 'ru' ? 'ru-RU' : 'en-US')
 useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 </script>
@@ -94,6 +124,31 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
     </section>
 
     <section class="card group">
+      <h2 class="section-title">{{ t('memoryTitle') }}</h2>
+      <p class="hint">{{ t('memoryNote') }}</p>
+      <div v-for="p in prefs ?? []" :key="p.key" class="pref">
+        <div class="ph"><code>{{ p.key }}</code><button type="button" class="icon-btn" :aria-label="`${t('delete')} ${p.key}`" @click="delPref(p.key)"><Icon name="trash" :size="18" /></button></div>
+        <textarea class="input ta" :value="p.text" rows="3" :aria-label="p.key" @change="savePref(p.key, ($event.target as HTMLTextAreaElement).value.trim())" />
+      </div>
+      <form class="pref" @submit.prevent="addPref">
+        <input v-model="np.key" class="input" :placeholder="t('memoryKey')" autocapitalize="off" autocomplete="off" spellcheck="false">
+        <textarea v-model="np.text" class="input ta" rows="2" :placeholder="t('memoryText')" />
+        <button type="submit" class="btn" :disabled="keyBad || !np.text.trim()">{{ t('memoryAdd') }}</button>
+      </form>
+      <p v-if="memErr" class="err">{{ memErr }}</p>
+    </section>
+
+    <section class="card group">
+      <h2 class="section-title">{{ t('usualMeals') }}</h2>
+      <p v-if="!meals?.length" class="hint">{{ t('usualNone') }}</p>
+      <div v-for="m in meals ?? []" :key="m.id" class="line">
+        <span class="ml"><b>{{ m.name }}</b><small>{{ m.items.map(i => `${i.name} ${i.grams} ${t('g')}`).join(' · ') }}</small></span>
+        <span class="num">{{ Math.round(m.kcal) }} {{ t('kcal') }}</span>
+        <button type="button" class="icon-btn" :aria-label="`${t('delete')} ${m.name}`" @click="delMeal(m)"><Icon name="trash" :size="18" /></button>
+      </div>
+    </section>
+
+    <section class="card group">
       <h2 class="section-title">{{ t('usageTitle') }}</h2>
       <p v-if="!usage || !usage.total.calls" class="hint">{{ t('usageNone') }}</p>
       <template v-else>
@@ -131,5 +186,12 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 .about { text-align: center; }
 .num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--fs-sm); text-align: right; }
 .tool { min-height: 40px; }
+.pref { display: grid; gap: var(--s-2); }
+.pref + .pref { border-top: 1px solid var(--line); padding-top: var(--s-3); }
+.ph { display: flex; align-items: center; justify-content: space-between; }
+.ph code { font-size: var(--fs-sm); color: var(--ink-2); }
+.ta { min-height: 0; height: auto; padding: var(--s-2) var(--s-3); resize: vertical; font: inherit; font-size: var(--fs-sm); line-height: 1.4; }
+.ml { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ml small { color: var(--ink-2); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .tool code { font-size: var(--fs-sm); }
 </style>

@@ -8,7 +8,7 @@ const slimEntry = (e: AnyEntry) => ({
   id: e.id, name: e.name, g: e.grams, kcal: r1(e.kcal), p: r1(e.p), f: r1(e.f), c: r1(e.c), src: e.source, ...(e.note ? { note: e.note } : {}),
 })
 type Day = Awaited<ReturnType<typeof getDay>>
-const dayTotals = (d: Day) => ({ date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal })
+const dayTotals = (d: Day) => ({ date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal, ...(d.estimate_kcal ? { estimate_kcal: d.estimate_kcal } : {}) })
 const slimDay = (d: Day) => ({
   ...dayTotals(d),
   ...(d.goal.p || d.goal.f || d.goal.c ? { macro_goals: { p: d.goal.p, f: d.goal.f, c: d.goal.c } } : {}),
@@ -45,8 +45,14 @@ const date = z.string().describe('Local date YYYY-MM-DD (Europe/Warsaw). Omit fo
 
 export function buildMcpServer() {
   const server = new McpServer(
-    { name: 'food-tracker', title: 'Food Tracker', version: '0.2.0' },
-    { instructions: 'Personal food diary of one user (Vasyl). All values are per 100 g; the server computes totals. Search before logging, and say raw vs cooked in names. Dates are local Europe/Warsaw.' },
+    { name: 'food-tracker', title: 'Food Tracker', version: '0.3.0' },
+    { instructions: [
+      'Personal food diary of one user (Vasyl). All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
+      'At the start of every conversation about food, call get_context once: it returns his standing rules (follow them), his usual meals and his most frequent products with the grams he usually eats.',
+      'Prefer, in order: a usual meal (log_meal), a frequent or saved product (product_id), search_products, and only then your own estimate.',
+      'Ask for grams instead of guessing; a guess must be logged with source "estimate".',
+      'When he states a lasting habit or corrects you ("I always weigh rice cooked", "my mug is 300 ml"), save it with set_preference.',
+    ].join(' ') },
   )
 
   server.registerTool('log_food', {
@@ -55,7 +61,8 @@ export function buildMcpServer() {
       'Create diary entries for one meal. The server computes kcal/protein/fat/carbs from grams × per-100 g values; never send totals.',
       'Prefer an existing product: call search_products first and pass its product_id (its per-100 g values are used).',
       'Without product_id, per100 and source are required. Values must be per 100 g, never per serving or per package.',
-      'Always state whether the weight is raw or cooked in the name, e.g. "buckwheat, cooked".',
+      'Always state whether the weight is raw or cooked in the name, e.g. "buckwheat, cooked"; follow the weighing rule from get_context.',
+      'Oil, butter and sauces are separate items in the same call, never folded into the dish; ask about them for cooked or dressed food.',
       'source: "label" (read from a package photo), "off" (Open Food Facts), "generic" (standard values for a generic food), "estimate" (you guessed grams or values, e.g. plate photo).',
       'Pass meal explicitly when the user said it; otherwise it is inferred from the time. Pass date when the user means another day (e.g. logging last night\'s dinner after midnight).',
       'Returns the created entries (g = grams) and the updated day totals.',
@@ -76,6 +83,69 @@ export function buildMcpServer() {
     const r = await logFood(parseOr400(logFoodSchema, args))
     return { created: r.created.map(slimEntry), day: dayTotals(r.day) }
   }))
+
+  server.registerTool('get_context', {
+    title: 'Get memory',
+    description: 'Call once at the start of a food conversation. Returns: prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  }, tool('get_context', async () => {
+    const c = await getContext()
+    return {
+      prefs: Object.fromEntries(c.prefs.map(p => [p.key, p.text])),
+      meals: c.meals.map(m => ({ id: m.id, name: m.name, ...(m.default_meal ? { meal: m.default_meal } : {}), kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) })),
+      meals_items_format: '[name, grams]',
+      frequent: c.frequent.map(f => [f.id, f.name, f.last_g, Math.round(f.kcal100), f.times]),
+      frequent_format: '[product_id, name, last grams, kcal per 100 g, times logged]',
+      today: dayTotals(c.day),
+    }
+  }))
+
+  server.registerTool('set_preference', {
+    title: 'Remember a rule',
+    description: 'Save or replace one standing rule about how he eats or logs (e.g. key "weighing", "coffee", "mug"), written as an instruction to yourself in English. text null deletes the rule. Rules are shown in get_context.',
+    inputSchema: {
+      key: z.string().describe('short slug: a-z, 0-9, _'),
+      text: z.string().nullable().describe('the rule, max 500 chars; null to delete'),
+    },
+  }, tool('set_preference', async args => {
+    const p = parseOr400(setPreferenceSchema, args)
+    return setPreference(p.key, p.text)
+  }))
+
+  server.registerTool('log_meal', {
+    title: 'Log a usual meal',
+    description: 'Log all items of a usual meal (id from get_context) in one call. scale multiplies every item\'s grams (e.g. 1.5). To change one item, log the meal and then fix that entry with update_entry, or log extra items with log_food.',
+    inputSchema: { meal_id: z.string(), date: date.optional(), meal: meal.optional(), scale: z.number().optional() },
+  }, tool('log_meal', async (args) => {
+    const r = await logSavedMeal(parseOr400(logMealSchema, args))
+    return { created: r.created.map(slimEntry), day: dayTotals(r.day) }
+  }))
+
+  server.registerTool('save_meal', {
+    title: 'Save a usual meal',
+    description: 'Save a meal he eats often so it can be logged with log_meal. Either copy what was logged: from {date, meal}; or give items (product_id preferred, otherwise per100 + source, like log_food). Pass id to replace an existing usual meal. Ask him for a short name, e.g. "usual breakfast".',
+    inputSchema: {
+      id: z.string().optional(),
+      name: z.string(),
+      default_meal: meal.optional(),
+      from: z.object({ date: z.string(), meal }).optional(),
+      items: z.array(z.object({
+        name: z.string(), grams: z.number(), product_id: z.string().optional(),
+        per100: per100.optional(), source: z.enum(['label', 'off', 'generic', 'estimate']).optional(),
+      })).optional(),
+    },
+  }, tool('save_meal', async (args) => {
+    const m = await saveMeal(parseOr400(saveMealSchema, args))
+    return { id: m.id, name: m.name, kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) }
+  }))
+
+  server.registerTool('delete_meal', {
+    title: 'Delete a usual meal',
+    description: 'Delete a usual meal by id (from get_context). Diary entries are not affected.',
+    inputSchema: { id: z.string() },
+    annotations: { destructiveHint: true },
+  }, tool('delete_meal', async ({ id }: { id: string }) => deleteSavedMeal(parseOr400(z.uuid(), id))))
 
   server.registerTool('get_day', {
     title: 'Get a diary day',

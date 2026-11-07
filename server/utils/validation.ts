@@ -51,6 +51,36 @@ export const goalsSchema = z.object({
   c_goal: z.number().int().min(0).max(2000).nullable().optional(),
 })
 
+export const prefKeySchema = z.string().regex(/^[a-z0-9_]{1,40}$/, 'key: 1–40 chars of a-z, 0-9, _')
+export const setPreferenceSchema = z.object({
+  key: prefKeySchema,
+  text: z.string().trim().min(1).max(500).nullable(),
+})
+
+export const saveMealSchema = z.object({
+  id: z.uuid().optional(),
+  name: z.string().trim().min(1).max(100),
+  default_meal: mealSchema.optional(),
+  items: z.array(z.object({
+    name: z.string().trim().min(1).max(200),
+    grams: z.number().positive().max(5000),
+    product_id: z.uuid().optional(),
+    per100: per100Schema.optional(),
+    source: entrySourceSchema.optional(),
+  })).min(1).max(30).optional(),
+  from: z.object({ date: isoDate, meal: mealSchema }).optional(),
+}).refine(v => !!v.items !== !!v.from, 'give either items or from (date + meal)')
+
+export const logMealSchema = z.object({
+  meal_id: z.uuid(),
+  date: isoDate.optional(),
+  meal: mealSchema.optional(),
+  scale: z.number().positive().max(5).optional(),
+})
+
+export type SetPreferenceInput = z.infer<typeof setPreferenceSchema>
+export type SaveMealInput = z.infer<typeof saveMealSchema>
+export type LogMealInput = z.infer<typeof logMealSchema>
 export type LogFoodInput = z.infer<typeof logFoodSchema>
 export type UpdateEntryInput = z.infer<typeof updateEntrySchema>
 export type UpsertProductInput = z.infer<typeof upsertProductSchema>
