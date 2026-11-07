@@ -1,1 +1,1 @@
-export default defineEventHandler(async event => setGoals(parseOr400(goalsSchema, await readBody(event))))
+export default defineEventHandler(async event => setGoals(uidOf(event), parseOr400(goalsSchema, await readBody(event))))

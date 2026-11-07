@@ -189,6 +189,7 @@ const en = {
   memoryTitle: 'Memory for Claude',
   memoryNote: 'Claude reads these rules at the start of every chat and adds new ones when you mention a habit.',
   memoryAdd: 'Add rule',
+  signedInAs: 'signed in as {name}',
   memoryKey: 'Short name (a-z, 0-9, _)',
   memoryText: 'Rule',
   // misc
@@ -370,6 +371,7 @@ const ru: Record<MsgKey, string> = {
   memoryTitle: 'Память для Claude',
   memoryNote: 'Claude читает эти правила в начале каждого чата и сам добавляет новые, когда ты рассказываешь о привычке.',
   memoryAdd: 'Добавить правило',
+  signedInAs: 'вход: {name}',
   memoryKey: 'Короткое имя (a-z, 0-9, _)',
   memoryText: 'Правило',
   offAttribution: 'Данные о продуктах © участники Open Food Facts (ODbL)',

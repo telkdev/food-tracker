@@ -46,3 +46,11 @@ Checked against current docs on 2026-11-07.
 - `log_meal` logs saved items by product id when the product still exists (current values) and falls back to the snapshot otherwise.
 - Oil/sauce toggles in the add sheet log generic values as their own entries (note "with <food>"), so they show up and can be edited like anything else.
 - `get_day` returns `estimate_kcal`; Today shows the share of kcal that comes from guesses.
+
+## Several users (2026-11-07)
+
+- Users live in env, no sign-up: `NUXT_APP_PASSWORD` is user `owner` (all earlier data), `NUXT_USERS="anna:password,petr:password"` adds more. Login stays password-only; the password identifies the user, so passwords must be unique and 12+ chars (others are ignored with a log line).
+- Every table has `user_id` and every query filters by it; functions take `uid` explicitly so a missing one is a type error. Settings are one row per user, created on first login with kcal 2500 and the oil/sauce rule.
+- OAuth codes and tokens carry the approving user's id; `/mcp` builds the tool server for that user. Removing a user from env cuts both their app session and their Claude tokens.
+- Products are per user (a barcode is unique per user), so nobody sees anyone's labels or usual meals.
+- `scripts/test-users.mjs` checks isolation over the API and MCP.

@@ -27,7 +27,9 @@ services:
       - key: NUXT_APP_SECRET
         generateValue: true
       - key: NUXT_APP_PASSWORD
-        sync: false # your login password, 12+ chars
+        sync: false # your login password, 12+ chars (user "owner")
+      - key: NUXT_USERS
+        sync: false # optional extra users "name:password,name2:password2"; each gets a private diary. Passwords 12+ chars, unique, no $ , :
       - key: NUXT_OFF_CONTACT
         sync: false # email for the Open Food Facts User-Agent
       # NUXT_SITE_URL is optional: Render sets RENDER_EXTERNAL_URL, which the OAuth metadata uses.

@@ -1,1 +1,1 @@
-export default defineEventHandler(() => listSavedMeals())
+export default defineEventHandler(event => listSavedMeals(uidOf(event)))
