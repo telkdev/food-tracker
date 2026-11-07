@@ -98,15 +98,17 @@ export async function offSearch(query: string, limit = 10): Promise<OffProduct[]
     // strip query-language characters so user text can't change the filter
     const words = q.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).map(w => w.replace(/^[-']+/, '')).filter(Boolean).slice(0, 6)
     if (!words.length) return []
-    // Note: Search-a-licious ignores "word*" prefixes (checked live 2026-11-07: "twar" → 0 hits),
-    // so OFF needs whole words; parts of words are handled by My products search.
-    const lucene = `${words.join(' ')} countries_tags:"en:poland"`
+    // Checked live 2026-11-07: Search-a-licious ignores "word*" prefixes ("twar" → 0 hits) and does not
+    // fold diacritics ("twarog" → 4 hits, "twaróg" → 10). Fuzzy terms ("twarog~") cover missing
+    // diacritics and small typos; parts of words are handled by My products search.
+    const terms = words.map(w => w.length >= 4 && !/\d/.test(w) ? `${w}~` : w)
+    const lucene = `${terms.join(' ')} countries_tags:"en:poland"`
     const json: any = await offFetch(`${searchBase}/search?q=${encodeURIComponent(lucene)}&langs=pl,en&page_size=${limit * 2}&fields=code,product_name,brands,nutriments`)
     return (json?.hits ?? []).map((h: any) => ({
       barcode: String(h.code ?? ''),
       name: asText(h.product_name) || `Product ${h.code}`,
       brand: asText(h.brands),
       per100: mapNutriments(h.nutriments),
-    })).filter((p: OffProduct) => p.per100).slice(0, limit)
+    })).filter((p: OffProduct) => p.per100 && !p.name.startsWith('Product ')).slice(0, limit)
   })
 }
