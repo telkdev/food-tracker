@@ -54,3 +54,11 @@ Checked against current docs on 2026-11-07.
 - OAuth codes and tokens carry the approving user's id; `/mcp` builds the tool server for that user. Removing a user from env cuts both their app session and their Claude tokens.
 - Products are per user (a barcode is unique per user), so nobody sees anyone's labels or usual meals.
 - `scripts/test-users.mjs` checks isolation over the API and MCP.
+
+## Day streak (2026-11-07)
+
+- Streak = consecutive local days (settings timezone) with at least one entry. Any entry counts, even a coffee: a minimum-kcal rule would punish light days and invite fake entries.
+- An empty today keeps yesterday's streak until local midnight (`today_logged: false`). Backfilling a missed day with its real date counts for that day.
+- Milestones are 10, 20, 30, 50, 100–300 by 50, 365, then every 100. Today shows the count under the title and a soft pill on a milestone day; no levels, badges or notifications.
+- A streak from another app is `settings.streak_carry_days` ending on `streak_carry_until`, set in Settings. Carried days are treated as logged only for the streak, never as entries, so totals, averages and the week view stay honest. It continues only if every day after `carry_until` is logged here.
+- `get_day`, `get_context` and log tools return `streak: { days, today_logged, milestone? }`; Claude is told to mention it only in passing.

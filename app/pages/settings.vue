@@ -36,6 +36,25 @@ async function save() {
   finally { busy.value = false }
 }
 
+// ---------- streak carried over from another app ----------
+const sc = reactive({ days: '', until: '' })
+watch(data, (s) => { if (s) Object.assign(sc, { days: s.streakCarryDays ? String(s.streakCarryDays) : '', until: s.streakCarryUntil ?? '' }) }, { immediate: true })
+const scDays = computed(() => sc.days.trim() === '' ? 0 : Number(sc.days))
+const scBad = computed(() => !Number.isInteger(scDays.value) || scDays.value < 0 || scDays.value > 3650 || (scDays.value > 0 && !sc.until) || (!!sc.until && !!settings.value?.today && sc.until > settings.value.today))
+const scErr = ref('')
+async function saveCarry() {
+  if (scBad.value) return
+  scErr.value = ''
+  try {
+    await $fetch('/api/streak-carry', { method: 'PUT', body: { days: scDays.value, until: scDays.value ? sc.until : null } })
+    settings.value = await $fetch<Settings>('/api/settings')
+    data.value = settings.value
+    useState<Record<string, unknown>>('day-cache').value = {}
+    toast.show(t('streakCarrySaved'))
+  }
+  catch (e) { scErr.value = errMsg(e, t('somethingWrong')) }
+}
+
 function setLang(p: LangPref) {
   langPref.value = p
   locale.value = resolveLocale(p, navigator.language)
@@ -114,6 +133,23 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       <button type="submit" class="btn btn-primary btn-block" :disabled="busy || kcalBad">{{ t('save') }}</button>
     </form>
 
+    <form class="card group" @submit.prevent="saveCarry">
+      <h2 class="section-title">{{ t('streakTitle') }}</h2>
+      <p class="hint">{{ t('streakNote') }}</p>
+      <p class="ll">{{ t('streakCarry') }}</p>
+      <label class="line">
+        <span class="ll">{{ t('streakCarryDays') }}</span>
+        <span class="iv"><input v-model="sc.days" class="input num" inputmode="numeric" placeholder="0" :aria-invalid="scBad && sc.days !== ''"></span>
+      </label>
+      <label class="line">
+        <span class="ll">{{ t('streakCarryUntil') }}</span>
+        <span class="iv"><input v-model="sc.until" class="input date" type="date" :max="settings?.today"></span>
+      </label>
+      <p class="hint">{{ t('streakCarryHint') }}</p>
+      <p v-if="scErr" class="err">{{ scErr }}</p>
+      <button type="submit" class="btn btn-block" :disabled="scBad">{{ t('save') }}</button>
+    </form>
+
     <section class="card group">
       <h2 class="section-title">{{ t('language') }}</h2>
       <div class="seg" role="group" :aria-label="t('language')">
@@ -176,6 +212,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 .ll small { color: var(--ink-3); font-weight: var(--fw-regular); font-size: var(--fs-xs); width: 100%; padding-left: 14px; }
 .iv { display: flex; align-items: center; gap: 6px; }
 .iv .input { width: 96px; text-align: right; min-height: 44px; }
+.iv .input.date { width: auto; text-align: left; }
 .input[aria-invalid='true'] { border-color: var(--danger); }
 .u { width: 2.2em; color: var(--ink-2); font-size: var(--fs-sm); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }

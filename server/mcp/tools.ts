@@ -8,7 +8,12 @@ const slimEntry = (e: AnyEntry) => ({
   id: e.id, name: e.name, g: e.grams, kcal: r1(e.kcal), p: r1(e.p), f: r1(e.f), c: r1(e.c), src: e.source, ...(e.note ? { note: e.note } : {}),
 })
 type Day = Awaited<ReturnType<typeof getDay>>
-const dayTotals = (d: Day) => ({ date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal, ...(d.estimate_kcal ? { estimate_kcal: d.estimate_kcal } : {}) })
+const slimStreak = (k: Day['streak']) => ({ days: k.days, today_logged: k.today_logged, ...(k.milestone ? { milestone: true } : {}) })
+const dayTotals = (d: Day) => ({
+  date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal,
+  ...(d.estimate_kcal ? { estimate_kcal: d.estimate_kcal } : {}),
+  streak: slimStreak(d.streak),
+})
 const slimDay = (d: Day) => ({
   ...dayTotals(d),
   ...(d.goal.p || d.goal.f || d.goal.c ? { macro_goals: { p: d.goal.p, f: d.goal.f, c: d.goal.c } } : {}),
@@ -88,7 +93,7 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('get_context', {
     title: 'Get memory',
-    description: 'Call once at the start of a food conversation. Returns: prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals.',
+    description: 'Call once at the start of a food conversation. Returns: prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, tool('get_context', async () => {
@@ -151,7 +156,7 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('get_day', {
     title: 'Get a diary day',
-    description: 'Entries grouped by meal (empty meals omitted; g = grams, src = source), totals, goal and kcal left for one day (default today).',
+    description: 'Entries grouped by meal (empty meals omitted; g = grams, src = source), totals, goal and kcal left for one day (default today), and the current streak (as of today, whatever date is asked).',
     inputSchema: { date: date.optional() },
     annotations: { readOnlyHint: true },
   }, tool('get_day', async ({ date }: { date?: string }) => slimDay(await getDay(uid, date ? parseOr400(isoDate, date) : undefined))))

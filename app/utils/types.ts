@@ -29,8 +29,12 @@ export interface Day {
   totals: Totals
   remaining_kcal: number
   estimate_kcal?: number
+  streak?: Streak
   meals: Record<Meal, { totals: Totals, entries: Entry[] }>
 }
+
+/** Consecutive days with at least one entry, as of today. */
+export interface Streak { days: number, today_logged: boolean, since: string | null, carried: number, milestone: boolean, next_milestone: number }
 
 export interface RangeDay { date: string, kcal: number, p: number, f: number, c: number, entries: number }
 export interface Range { from: string, to: string, goal_kcal: number, logged_days: number, avg_kcal_logged_days: number | null, days: RangeDay[] }
@@ -61,6 +65,8 @@ export interface Settings {
   fGoal: number | null
   cGoal: number | null
   timezone: string
+  streakCarryDays: number
+  streakCarryUntil: string | null
   today: string
 }
 

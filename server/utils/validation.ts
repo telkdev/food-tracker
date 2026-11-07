@@ -86,6 +86,13 @@ export type UpdateEntryInput = z.infer<typeof updateEntrySchema>
 export type UpsertProductInput = z.infer<typeof upsertProductSchema>
 export type GoalsInput = z.infer<typeof goalsSchema>
 
+/** Streak carried over from another app: `days` days ending on `until` (the last day logged there). days 0 clears it. */
+export const streakCarrySchema = z.object({
+  days: z.number().int().min(0).max(3650),
+  until: isoDate.nullable(),
+}).refine(c => c.days === 0 || c.until !== null, { message: 'until is required when days > 0', path: ['until'] })
+export type StreakCarryInput = z.infer<typeof streakCarrySchema>
+
 /** zod error → 400 */
 export function parseOr400<T>(schema: z.ZodType<T>, data: unknown): T {
   const r = schema.safeParse(data)

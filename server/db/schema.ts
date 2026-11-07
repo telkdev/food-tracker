@@ -92,9 +92,14 @@ export const settings = pgTable('settings', {
   fGoal: integer('f_goal'),
   cGoal: integer('c_goal'),
   timezone: text('timezone').notNull().default('Europe/Warsaw'),
+  // Streak carried over from another app (e.g. FatSecret): this many days, ending on streak_carry_until.
+  // Not diary entries; see server/utils/streak.ts.
+  streakCarryDays: integer('streak_carry_days').notNull().default(0),
+  streakCarryUntil: date('streak_carry_until', { mode: 'string' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, t => [
   check('settings_kcal_goal_range', sql`${t.kcalGoal} between 800 and 8000`),
+  check('settings_streak_carry_range', sql`${t.streakCarryDays} between 0 and 3650`),
 ])
 
 // ---------- Memory for Claude: preferences and "my usual" meals ----------

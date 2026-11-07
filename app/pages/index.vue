@@ -86,6 +86,17 @@ const title = computed(() => {
 })
 const eyebrow = computed(() => current.value ? fmtDate(locale.value, current.value, { weekday: rel.value >= -1 ? 'long' : undefined, day: 'numeric', month: 'long' }) : '')
 
+// ---------- streak (as of today; shown only on the Today view) ----------
+const streak = computed(() => rel.value === 0 && day.value?.streak?.days ? day.value.streak : null)
+const streakText = computed(() => {
+  const k = streak.value?.days ?? 0
+  const m10 = k % 10, m100 = k % 100
+  const key = locale.value !== 'ru' ? 'streakMany'
+    : m10 === 1 && m100 !== 11 ? 'streakOne'
+      : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'streakFew' : 'streakMany'
+  return t(key, { n: n(k) })
+})
+
 // ---------- hero ----------
 const eaten = computed(() => day.value?.totals.kcal ?? 0)
 const goal = computed(() => day.value?.goal.kcal ?? settings.value?.kcalGoal ?? 2500)
@@ -215,6 +226,9 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
           <h1>{{ title }}</h1>
           <button v-if="rel !== 0" type="button" class="todaypill" @click="go(today)">{{ t('today') }}</button>
         </div>
+        <p v-if="streak" class="streak" :class="{ milestone: streak.milestone, open: !streak.today_logged }" :title="streak.today_logged ? undefined : t('streakOpen')">
+          <span class="num">{{ streakText }}</span><template v-if="!streak.today_logged"> · {{ t('streakOpenShort') }}</template>
+        </p>
       </div>
       <div class="nav">
         <button type="button" class="icon-btn" :aria-label="t('prevDay')" @click="shift(-1)"><Icon name="left" /></button>
@@ -278,6 +292,12 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
   background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-bold); position: relative;
 }
 .todaypill::after { content: ''; position: absolute; inset: -6px -2px; }
+.streak { margin-top: 2px; font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); justify-self: start; width: fit-content; }
+.streak .num { font-weight: var(--fw-bold); color: var(--ink); }
+.streak.open .num { color: var(--ink-2); }
+/* quiet mark on 10, 20, 30, 50, 100 … days: a soft pill, nothing more */
+.streak.milestone { padding: 2px var(--s-2); margin-left: calc(-1 * var(--s-2)); border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); }
+.streak.milestone .num { color: inherit; }
 .nav { display: flex; gap: 0; margin-right: calc(-1 * var(--s-2)); }
 .nav .icon-btn:disabled { opacity: .3; }
 
