@@ -22,6 +22,7 @@ Checked against current docs on 2026-11-07.
 - **Render free web service is not usable for MCP.** It sleeps after 15 min and takes ~1 min to wake; claude.ai gives OAuth discovery/registration/token endpoints 10 s. Use `starter` (always on).
 - **Render free Postgres is deleted** 30 days after creation (+14 days grace), no backups. Use Neon free (no expiry, scale-to-zero, PITR window) or Render `basic-256mb` (~$6/mo, backups).
 - **Chosen for now (2026-11-07): all free.** Render free web + Neon free Postgres (also $0, but doesn't expire, unlike Render free Postgres). Migrations run in `startCommand`, since the free plan has no pre-deploy step. Upgrade the web service to `starter` before connecting MCP in step 5.
+- **Keep-alive on the free plan (2026-11-07).** The connector showed zero tools after the service slept (cold start at 17:29 UTC). The GitHub Actions cron alone didn't help: GitHub fired 1 of ~36 scheduled runs that day. Now the service pings its own public `/ping` every 10 min from 07:00 to 24:00 Warsaw (`server/plugins/keepAwake.ts`, `KEEP_AWAKE_HOURS`, `off` disables), and the GitHub cron only has to wake it in the morning. `/ping` skips the database so Neon can still scale to zero. Budget: 17 h × 31 days ≈ 527 h of Render's 750 free hours per workspace, leaving ≈ 220 h for other free services (platinum-bot). Night-time requests still hit a cold start. Starter (always on) remains the real fix.
 - Region: Frankfurt for both.
 
 ## Auth (now and later)

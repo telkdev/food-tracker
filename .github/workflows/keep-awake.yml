@@ -1,14 +1,17 @@
-# Pings the Render free web service so it doesn't sleep (sleeping breaks claude.ai's 10 s OAuth timeouts).
-# Runs 07:00–23:59 Warsaw time only, to stay well inside Render's 750 free hours/month per workspace.
-# GitHub may delay scheduled runs by several minutes, and disables them after 60 days without repo activity.
+# Wakes the Render free web service in the morning and backs up the in-app keep-alive
+# (server/plugins/keepAwake.ts), which keeps it awake from first wake until local midnight.
+# GitHub scheduled runs are best effort: on 2026-11-07 only 1 of ~36 runs fired, so this alone
+# can't keep the service awake. Runs 05:00–22:50 UTC (≈ 06/07:00–23/24:00 Warsaw depending on DST).
+# GitHub disables schedules after 60 days without repo activity.
 name: keep-awake
 on:
   schedule:
-    - cron: '*/10 5-22 * * *' # UTC; ≈ 06/07:00–23/24:00 in Warsaw depending on DST
+    - cron: '*/10 5-22 * * *'
   workflow_dispatch:
 jobs:
   ping:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://food-tracker-lt1f.onrender.com/api/health
+      # /ping doesn't touch the database, so it doesn't keep Neon awake
+      - run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://food-tracker-lt1f.onrender.com/ping
