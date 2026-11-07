@@ -26,6 +26,13 @@ function onSaved(p: Product, created: boolean) {
   toast.show(created ? t('saved') : t('saved'))
 }
 
+/** From the New product sheet: the name or barcode matched a product already in My products. */
+function onOpenExisting(p: Product) {
+  const all = data.value?.results ?? []
+  if (!all.some(x => x.id === p.id)) data.value = { results: [...all, p].sort((a, b) => a.name.localeCompare(b.name)) }
+  editing.value = p
+}
+
 async function onDelete(p: Product) {
   editing.value = null
   try {
@@ -97,7 +104,7 @@ useHead({ title: () => `${t('productsTitle')} · ${t('appName')}` })
       </template>
     </template>
 
-    <ProductSheet :product="editing" @close="editing = null" @saved="onSaved" @delete="onDelete" @log="onLog" />
+    <ProductSheet :product="editing" @close="editing = null" @saved="onSaved" @delete="onDelete" @log="onLog" @open="onOpenExisting" />
   </div>
 </template>
 

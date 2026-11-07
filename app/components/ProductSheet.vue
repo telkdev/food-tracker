@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { Product, ProductSource } from '~/utils/types'
+import type { Product, ProductSource, SearchResult } from '~/utils/types'
 import { errMsg, parseDecimal } from '~/utils/format'
 
 /** Create (product = 'new') or edit a saved product. */
 const props = defineProps<{ product: Product | 'new' | null }>()
-const emit = defineEmits<{ close: [], saved: [Product, boolean], delete: [Product], log: [Product] }>()
-const { t } = useT()
+const emit = defineEmits<{ close: [], saved: [Product, boolean], delete: [Product], log: [Product], open: [Product] }>()
+const { t, n } = useT()
 
 const f = reactive({ name: '', brand: '', barcode: '', kcal: '', p: '', f: '', c: '', source: 'label' as ProductSource })
 const touched = ref(false)
@@ -13,8 +13,97 @@ const busy = ref(false)
 const error = ref('')
 const isNew = computed(() => props.product === 'new')
 
+
+// ---------- suggestions while typing the name (new products only) ----------
+// My products answer instantly; Open Food Facts allows ~10 searches/min, so it waits for a pause and is cached.
+const mine = ref<SearchResult[]>([])
+const off = ref<SearchResult[]>([])
+const offLoading = ref(false)
+const showSuggest = ref(false)
+const filledNote = ref('')
+const scanning = ref(false)
+const offCache = new Map<string, SearchResult[]>()
+let skipNext = false
+let tLocal: ReturnType<typeof setTimeout> | undefined
+let tOff: ReturnType<typeof setTimeout> | undefined
+let seq = 0
+
+function resetSuggest() {
+  clearTimeout(tLocal); clearTimeout(tOff); seq++
+  mine.value = []; off.value = []; offLoading.value = false; showSuggest.value = false; filledNote.value = ''; scanning.value = false
+}
+
+watch(() => f.name, (raw) => {
+  if (!isNew.value) return
+  if (skipNext) { skipNext = false; return }
+  clearTimeout(tLocal); clearTimeout(tOff)
+  const s = raw.trim(); const my = ++seq
+  filledNote.value = ''
+  if (s.length < 2) { mine.value = []; off.value = []; offLoading.value = false; return }
+  showSuggest.value = true
+  tLocal = setTimeout(async () => {
+    try {
+      const r = await $fetch<{ results: SearchResult[] }>('/api/products', { query: { q: s, off: '0' } })
+      if (my === seq) mine.value = r.results.slice(0, 3)
+    }
+    catch { if (my === seq) mine.value = [] }
+  }, 150)
+  if (s.length < 3) { off.value = []; return }
+  const hit = offCache.get(s.toLowerCase())
+  if (hit) { off.value = hit; return }
+  off.value = []
+  tOff = setTimeout(async () => {
+    offLoading.value = true
+    try {
+      const r = await $fetch<{ results: SearchResult[], off_error: string | null }>('/api/products', { query: { q: s, off: '1' } })
+      const list = r.results.filter(x => x.origin === 'open_food_facts').slice(0, 6)
+      if (!r.off_error) offCache.set(s.toLowerCase(), list)
+      if (my === seq) off.value = list
+    }
+    catch { if (my === seq) off.value = [] }
+    finally { if (my === seq) offLoading.value = false }
+  }, 600)
+})
+
+const suggestOpen = computed(() => isNew.value && showSuggest.value && f.name.trim().length >= 2)
+
+function asProduct(r: SearchResult): Product {
+  return { id: r.id!, name: r.name, brand: r.brand, barcode: r.barcode, per100: r.per100!, source: r.source }
+}
+
+function pickSuggestion(r: SearchResult) {
+  resetSuggest()
+  if (r.origin === 'my_products' && r.id && r.per100) { emit('open', asProduct(r)); return }
+  skipNext = true
+  f.name = r.name
+  f.brand = r.brand ?? f.brand
+  f.barcode = r.barcode ?? f.barcode
+  if (r.per100) {
+    Object.assign(f, { kcal: String(r.per100.kcal), p: String(r.per100.p), f: String(r.per100.f), c: String(r.per100.c), source: 'off' })
+    filledNote.value = t('suggestFilled')
+  }
+  else filledNote.value = t('suggestFilledPartial')
+}
+
+function closeSuggest() { showSuggest.value = false }
+
+async function onScanned(code: string) {
+  scanning.value = false
+  f.barcode = code
+  try {
+    const r = await $fetch<any>(`/api/products/barcode/${code}`)
+    // found = already mine, or fetched from OFF and saved to My products by the server
+    if (r.found) { emit('open', r.product); return }
+    skipNext = true
+    if (r.name && !f.name) f.name = r.name
+    if (r.brand && !f.brand) f.brand = r.brand
+    filledNote.value = t('barcodeNotFound')
+  }
+  catch (e) { error.value = errMsg(e, t('somethingWrong')) }
+}
+
 watch(() => props.product, (p) => {
-  touched.value = false; error.value = ''
+  touched.value = false; error.value = ''; resetSuggest()
   if (!p) return
   if (p === 'new') Object.assign(f, { name: '', brand: '', barcode: '', kcal: '', p: '', f: '', c: '', source: 'label' })
   else Object.assign(f, { name: p.name, brand: p.brand ?? '', barcode: p.barcode ?? '', kcal: String(p.per100.kcal), p: String(p.per100.p), f: String(p.per100.f), c: String(p.per100.c), source: p.source })
@@ -60,19 +149,45 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
       </div>
     </template>
     <form class="form" novalidate @submit.prevent="save">
-      <label class="field">
-        <span>{{ t('name') }}</span>
-        <input v-model="f.name" class="input" :placeholder="t('namePlaceholder')" autocomplete="off" :autofocus="isNew || undefined" :aria-invalid="touched && !!errors.name">
+      <div class="field namefield">
+        <label for="pname">{{ t('name') }}</label>
+        <input
+          id="pname" v-model="f.name" class="input" :placeholder="t('namePlaceholder')" autocomplete="off" autocapitalize="sentences"
+          :autofocus="isNew || undefined" :aria-invalid="touched && !!errors.name"
+          role="combobox" :aria-expanded="suggestOpen" aria-controls="psuggest" aria-autocomplete="list"
+          @focus="showSuggest = true" @blur="closeSuggest" @keydown.esc="closeSuggest"
+        >
         <small v-if="touched && errors.name" class="ferr">{{ errors.name }}</small>
-      </label>
+        <div v-if="suggestOpen" id="psuggest" class="suggest" role="listbox" @pointerdown.prevent>
+          <template v-if="mine.length">
+            <p class="sh">{{ t('suggestMine') }}</p>
+            <button v-for="r in mine" :key="`m${r.id}`" type="button" role="option" class="opt" @click="pickSuggestion(r)">
+              <span class="on"><b>{{ r.name }}</b><small v-if="r.brand">{{ r.brand }}</small></span>
+              <span v-if="r.per100" class="ok num">{{ n(r.per100.kcal) }} <small>kcal</small></span>
+            </button>
+          </template>
+          <p class="sh">{{ t('suggestOff') }}<span v-if="offLoading" class="spinner" /></p>
+          <button v-for="(r, i) in off" :key="`o${r.barcode ?? i}`" type="button" role="option" class="opt" @click="pickSuggestion(r)">
+            <span class="on"><b>{{ r.name }}</b><small v-if="r.brand">{{ r.brand }}</small></span>
+            <span v-if="r.per100" class="ok num">{{ n(r.per100.kcal) }} <small>kcal</small></span>
+            <span v-else class="ok none">{{ t('suggestNoNutrition') }}</span>
+          </button>
+          <button type="button" class="opt manual" @click="closeSuggest"><Icon name="pencil" :size="18" />{{ t('suggestManual') }}</button>
+        </div>
+        <small v-if="filledNote" class="note">{{ filledNote }}</small>
+      </div>
       <div class="grid2">
         <label class="field"><span>{{ t('brand') }}</span><input v-model="f.brand" class="input" autocomplete="off"></label>
         <label class="field">
           <span>{{ t('barcode') }}</span>
-          <input v-model="f.barcode" class="input num" inputmode="numeric" autocomplete="off" :aria-invalid="touched && !!errors.barcode">
+          <span class="bcrow">
+            <input v-model="f.barcode" class="input num" inputmode="numeric" autocomplete="off" :aria-invalid="touched && !!errors.barcode">
+            <button v-if="isNew" type="button" class="icon-btn scanbtn" :aria-label="t('scanBarcode')" :aria-pressed="scanning" @click="scanning = !scanning"><Icon name="barcode" :size="20" /></button>
+          </span>
         </label>
       </div>
       <small v-if="touched && errors.barcode" class="ferr">{{ errors.barcode }}</small>
+      <div v-if="scanning" class="scanbox"><LazyBarcodeScanner @detected="onScanned" /></div>
       <fieldset class="per100">
         <legend class="label">{{ t('per100Title') }}</legend>
         <div class="grid4">
@@ -109,7 +224,7 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
 .head { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--s-2); }
 .head h2 { font-size: var(--fs-xl); }
 .form { display: grid; gap: var(--s-4); }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+.grid2 { display: grid; grid-template-columns: 1fr; gap: var(--s-4); }
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
 .grid4 .input { padding: 0 var(--s-2); text-align: center; }
 .grid4 .field > span { font-size: var(--fs-xs); display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
@@ -119,6 +234,30 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
 .dot.p { background: var(--protein); } .dot.f { background: var(--fat); } .dot.c { background: var(--carbs); }
 .input[aria-invalid='true'] { border-color: var(--danger); }
 .ferr { color: var(--danger); font-size: var(--fs-xs); }
+.namefield > label { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); }
+.note { color: var(--ink-2); font-size: var(--fs-xs); }
+.suggest {
+  max-height: min(48dvh, 400px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2); padding: var(--s-1) 0;
+}
+.sh { display: flex; align-items: center; gap: var(--s-2); margin: 0; padding: var(--s-2) var(--s-4) var(--s-1); font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
+.opt {
+  display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: var(--tap); padding: var(--s-2) var(--s-4);
+  border: 0; background: none; color: inherit; text-align: left; font: inherit; cursor: pointer;
+}
+.opt:hover, .opt:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.on { flex: 1; min-width: 0; display: grid; }
+.on b { font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.on small, .ok small { color: var(--ink-2); font-size: var(--fs-xs); }
+.ok { flex: none; font-weight: var(--fw-bold); }
+.ok.none { font-weight: normal; color: var(--ink-3); font-size: var(--fs-xs); }
+.manual { color: var(--accent); border-top: 1px solid var(--line); margin-top: var(--s-1); }
+.bcrow { display: flex; gap: var(--s-2); }
+.bcrow .input { flex: 1; min-width: 0; }
+.scanbtn { flex: none; width: 48px; border: 1px solid var(--line); border-radius: var(--r-md); }
+.scanbtn[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.scanbox { border-radius: var(--r-lg); overflow: hidden; }
 
 .foot { display: flex; gap: var(--s-2); align-items: center; }
 .grow { flex: 1; min-height: 52px; }
