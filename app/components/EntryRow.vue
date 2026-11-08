@@ -15,6 +15,7 @@ const approx = computed(() => props.entry.source === 'estimate')
         <SourceBadge :source="entry.source" />
         <span v-if="entry.note" class="note">{{ entry.note }}</span>
       </span>
+      <MacroSplit :p="entry.p" :f="entry.f" :c="entry.c" />
     </span>
     <span class="kcal num" :class="{ approx }"><span v-if="approx" aria-hidden="true">≈</span>{{ n(entry.kcal) }}<small>{{ t('kcal') }}</small></span>
   </button>

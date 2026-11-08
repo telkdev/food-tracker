@@ -62,3 +62,16 @@ export function matchesWords(text: string, query: string) {
   const hay = fold(text)
   return fold(query).split(/[\s,]+/).filter(Boolean).every(w => hay.includes(w))
 }
+
+/** Share of energy from protein/fat/carbs (4/9/4 kcal per g), as whole percents summing to 100. Null when there is no macro energy. */
+export function macroEnergySplit(p: number | null | undefined, f: number | null | undefined, c: number | null | undefined) {
+  const e = [Math.max(0, p ?? 0) * 4, Math.max(0, f ?? 0) * 9, Math.max(0, c ?? 0) * 4]
+  const total = e[0]! + e[1]! + e[2]!
+  if (!(total > 0)) return null
+  const raw = e.map(x => x / total * 100)
+  const out = raw.map(Math.floor)
+  let left = 100 - out.reduce((a, b) => a + b, 0)
+  const order = raw.map((x, i) => [x - Math.floor(x), i] as const).sort((a, b) => b[0] - a[0])
+  for (const [, i] of order) { if (left <= 0) break; out[i]!++; left-- }
+  return { p: out[0]!, f: out[1]!, c: out[2]! }
+}
