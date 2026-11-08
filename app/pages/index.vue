@@ -262,6 +262,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
           </div>
         </section>
 
+        <DayPlanCard v-if="rel === 0" :date="current" :stamp="`${day.totals.kcal}`" @added="onAdded" />
+
         <MealSection v-for="m in MEALS" :key="m" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" @save="saveUsual" />
 
         <p v-if="anyOff" class="attribution foot">{{ t('offAttribution') }}</p>
