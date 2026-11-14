@@ -68,6 +68,8 @@ export interface Settings {
   streakCarryDays: number
   streakCarryUntil: string | null
   today: string
+  /** greeting name; null when none is set */
+  name?: string | null
 }
 
 /** Something that can be logged: a saved product, an OFF hit, a recent entry or a manual item. */

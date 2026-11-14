@@ -222,6 +222,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
   <div class="today" @touchstart.passive="touchStart" @touchend.passive="touchEnd">
     <header class="top">
       <div class="when">
+        <p v-if="rel === 0" class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</p>
         <p class="eyebrow">{{ eyebrow }}</p>
         <div class="trow">
           <h1>{{ title }}</h1>
@@ -286,6 +287,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .today { display: grid; gap: var(--s-4); min-height: 70dvh; }
 .top { display: flex; align-items: flex-end; gap: var(--s-2); padding-top: var(--s-2); }
 .when { flex: 1; min-width: 0; }
+.hello { font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--ink); margin-bottom: 2px; }
 .eyebrow { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); }
 .eyebrow::first-letter, .trow h1::first-letter { text-transform: uppercase; }
 .trow { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
