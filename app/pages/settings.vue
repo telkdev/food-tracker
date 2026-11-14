@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Preference, SavedMeal, Settings } from '~/utils/types'
 import { errMsg } from '~/utils/format'
+import { intlTag } from '~/utils/i18n'
 import type { LangPref } from '~/composables/useI18n'
 
 const { t, locale } = useT()
@@ -99,7 +100,7 @@ async function delMeal(m: SavedMeal) {
   catch (e) { memErr.value = errMsg(e, t('somethingWrong')) }
 }
 
-const nf = (n: number) => n.toLocaleString(locale.value === 'ru' ? 'ru-RU' : 'en-US')
+const nf = (n: number) => n.toLocaleString(intlTag[locale.value])
 useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 </script>
 
@@ -154,8 +155,9 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       <h2 class="section-title">{{ t('language') }}</h2>
       <div class="seg" role="group" :aria-label="t('language')">
         <button type="button" :aria-pressed="langPref === 'auto'" @click="setLang('auto')">{{ t('langAuto') }}</button>
-        <button type="button" :aria-pressed="langPref === 'ru'" lang="ru" @click="setLang('ru')">Русский</button>
-        <button type="button" :aria-pressed="langPref === 'en'" lang="en" @click="setLang('en')">English</button>
+        <button type="button" :aria-pressed="langPref === 'ru'" lang="ru" aria-label="Русский" title="Русский" @click="setLang('ru')">Рус</button>
+        <button type="button" :aria-pressed="langPref === 'uk'" lang="uk" aria-label="Українська" title="Українська" @click="setLang('uk')">Укр</button>
+        <button type="button" :aria-pressed="langPref === 'en'" lang="en" aria-label="English" title="English" @click="setLang('en')">Eng</button>
       </div>
     </section>
 
