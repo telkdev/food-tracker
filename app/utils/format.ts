@@ -1,9 +1,9 @@
-import type { Locale } from './i18n'
+import { intlTag, type Locale } from './i18n'
 
 const nf = new Map<string, Intl.NumberFormat>()
 function numberFormat(locale: Locale, digits: number) {
   const k = `${locale}:${digits}`
-  if (!nf.has(k)) nf.set(k, new Intl.NumberFormat(locale === 'ru' ? 'ru-RU' : 'en-GB', { maximumFractionDigits: digits }))
+  if (!nf.has(k)) nf.set(k, new Intl.NumberFormat(intlTag[locale], { maximumFractionDigits: digits }))
   return nf.get(k)!
 }
 
@@ -36,7 +36,7 @@ export function diffDays(a: string, b: string) {
 }
 
 export function fmtDate(locale: Locale, iso: string, opts: Intl.DateTimeFormatOptions) {
-  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-GB', { ...opts, timeZone: 'UTC' })
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(intlTag[locale], { ...opts, timeZone: 'UTC' })
 }
 
 /** Same rule as server/utils/dates.ts mealFromTime, in Europe/Warsaw. */

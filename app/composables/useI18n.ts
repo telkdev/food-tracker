@@ -1,4 +1,4 @@
-import { pickLocale, translate, type Locale, type MsgKey } from '~/utils/i18n'
+import { messages, pickLocale, translate, type Locale, type MsgKey } from '~/utils/i18n'
 import { fmtNum } from '~/utils/format'
 
 export type LangPref = 'auto' | Locale
@@ -20,5 +20,6 @@ export function useLangPref() {
 }
 
 export function resolveLocale(pref: LangPref, browserLang: string | null | undefined): Locale {
-  return pref === 'auto' ? pickLocale(browserLang) : pref
+  // an unknown cookie value (old or hand-edited) falls back to auto
+  return pref !== 'auto' && pref in messages ? pref : pickLocale(browserLang)
 }
