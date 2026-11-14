@@ -96,12 +96,13 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('get_context', {
     title: 'Get memory',
-    description: 'Call once at the start of a food conversation. Returns: prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it. If this first call times out or errors, the server is waking from sleep (up to ~60 s): wait ~30 s and retry up to 3 times before giving up.',
+    description: 'Call once at the start of a food conversation. Returns: user_name (what to call the user), prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it. If this first call times out or errors, the server is waking from sleep (up to ~60 s): wait ~30 s and retry up to 3 times before giving up.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, tool('get_context', async () => {
     const c = await getContext(uid)
     return {
+      user_name: displayName(uid),
       prefs: Object.fromEntries(c.prefs.map(p => [p.key, p.text])),
       meals: c.meals.map(m => ({ id: m.id, name: m.name, ...(m.default_meal ? { meal: m.default_meal } : {}), kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) })),
       meals_items_format: '[name, grams]',
