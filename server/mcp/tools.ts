@@ -104,7 +104,7 @@ export function buildMcpServer(uid: string) {
   }, tool('get_context', async () => {
     const c = await getContext(uid)
     return {
-      user_name: displayName(uid),
+      user_name: await userDisplayName(uid),
       prefs: Object.fromEntries(c.prefs.map(p => [p.key, p.text])),
       meals: c.meals.map(m => ({ id: m.id, name: m.name, ...(m.default_meal ? { meal: m.default_meal } : {}), kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) })),
       meals_items_format: '[name, grams]',

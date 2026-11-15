@@ -161,7 +161,7 @@ export async function requireBearer(event: H3Event) {
   ))
   if (!row) fail('token expired or revoked')
   if (row!.resource !== mcpUrl(event)) fail('token issued for a different resource')
-  // a user removed from NUXT_USERS loses Claude access too
-  if (!isKnownUser(row!.userId)) fail('user no longer exists')
+  // a disabled user loses Claude access too
+  if (!await isKnownUser(row!.userId)) fail('user no longer exists')
   return row!
 }

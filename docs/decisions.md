@@ -49,11 +49,20 @@ Checked against current docs on 2026-11-07.
 
 ## Several users (2026-11-07)
 
-- Users live in env, no sign-up: `NUXT_APP_PASSWORD` is user `owner` (all earlier data), `NUXT_USERS="anna:password,petr:password"` adds more. Login stays password-only; the password identifies the user, so passwords must be unique and 12+ chars (others are ignored with a log line).
+- (Superseded 2026-11-15 by the users table, see below.) Users live in env, no sign-up: `NUXT_APP_PASSWORD` is user `owner` (all earlier data), `NUXT_USERS="anna:password,petr:password"` adds more. Login stays password-only; the password identifies the user, so passwords must be unique and 12+ chars (others are ignored with a log line).
 - Every table has `user_id` and every query filters by it; functions take `uid` explicitly so a missing one is a type error. Settings are one row per user, created on first login with kcal 2500 and the oil/sauce rule.
 - OAuth codes and tokens carry the approving user's id; `/mcp` builds the tool server for that user. Removing a user from env cuts both their app session and their Claude tokens.
 - Products are per user (a barcode is unique per user), so nobody sees anyone's labels or usual meals.
 - `scripts/test-users.mjs` checks isolation over the API and MCP.
+
+## Users in the database, passkeys (2026-11-15)
+
+- Why not JWT: the session already is a stateless sealed token (nuxt-auth-utils cookie). JWT would only add a format and no revocation; the pain was user management in env, password-only login and session-only cookies (no Expires, so PWAs lost the login when closed).
+- `users` table (migration 0008). `users.id` = the existing `user_id` on every row ("owner", "nadia"...), never changes; `users.login` is what you type and can be renamed. The migration only adds rows, for every user_id already present in the data, so nothing is re-keyed.
+- Env (`NUXT_APP_PASSWORD`, `NUXT_USERS`, `NUXT_USER_NAMES`) is import-only: on start, empty password hashes / names are filled from it (scrypt via nuxt-auth-utils). A password set in the app is never overwritten. After the first deploy the three variables can be removed.
+- Login = login + password (passwords no longer need to be unique; new ones 8+ chars). Passkeys (WebAuthn, discoverable, `@simplewebauthn` through nuxt-auth-utils) are added per device in Settings and log in with one tap. Challenges are single-use, 5 min, in memory. rpID = the site host: moving to another domain means adding passkeys again.
+- Sessions: cookie re-sent at most daily with Max-Age ~400 days (browser cap), so it slides; 180 days without opening the app → log in again. `sv` in the cookie must equal `users.session_version`; "log out everywhere", password change and reset bump it. Cookies from before 0008 have no `sv` and stay valid while session_version is still 1, so nobody had to log in again.
+- Admin (`is_admin`, owner) gets a Users page: add a user (one-time link, 7 days, to set a password), reset link, rename login / greeting, log out everywhere, disable. No delete: diaries are never removed from the UI. Disabling also cuts Claude tokens (checked on every `/mcp` call).
 
 ## Day streak (2026-11-07)
 

@@ -2,9 +2,10 @@ import { timingSafeEqual } from 'node:crypto'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
+  const user = await sessionUser(event)
+  if (!user) return errorPage(event, 'Your login expired. Start connecting again from Claude.')
+  const uid = user.id
   const session = await getUserSession(event)
-  const uid = (session.user as { id?: unknown } | undefined)?.id
-  if (!isKnownUser(uid)) return errorPage(event, 'Your login expired. Start connecting again from Claude.')
   const csrf = String(body?.csrf || '')
   const expected = String((session as any).oauthCsrf || '')
   if (!expected || csrf.length !== expected.length || !timingSafeEqual(Buffer.from(csrf), Buffer.from(expected))) {

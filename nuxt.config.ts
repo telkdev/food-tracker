@@ -3,10 +3,12 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
   devtools: { enabled: true },
   modules: ['nuxt-auth-utils'],
+  auth: { webAuthn: true },
   css: ['@fontsource-variable/onest', '~/assets/css/tokens.css', '~/assets/css/base.css'],
   runtimeConfig: {
-    // Overridden at runtime by NUXT_APP_PASSWORD. Single-user login until passkeys land (build step 5).
-    appPassword: '',
+    // Login sessions: h3 never expires them on its own; the 180-day idle limit and session_version
+    // (server/utils/authSession.ts) decide. The browser keeps the cookie up to ~400 days from the last refresh.
+    session: { maxAge: 10 * 365 * 86_400 },
     // Public origin, e.g. https://food-tracker.onrender.com. Falls back to RENDER_EXTERNAL_URL, then the request.
     siteUrl: '',
     // Comma-separated extra https redirect URIs allowed for OAuth clients (Claude's callbacks are built in).

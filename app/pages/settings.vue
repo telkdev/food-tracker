@@ -61,6 +61,56 @@ function setLang(p: LangPref) {
   locale.value = resolveLocale(p, navigator.language)
 }
 
+// ---------- sign-in: passkeys, password, sessions ----------
+interface Account { id: string, login: string, name: string | null, greeting: string, isAdmin: boolean, hasPassword: boolean, passkeys: { id: string, name: string | null, backedUp: boolean, createdAt: string, lastUsedAt: string | null }[] }
+const { data: account, refresh: refreshAccount } = await useAsyncData('account', () => requestFetch<Account>('/api/account'))
+const { register: registerPasskey, isSupported: passkeysSupported } = useWebAuthn({ registerEndpoint: '/api/webauthn/register' })
+const signErr = ref('')
+const pkBusy = ref(false)
+function deviceName() {
+  const ua = navigator.userAgent
+  const os = /iPhone|iPad/.test(ua) ? 'iPhone/iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : ''
+  return os || t('passkey')
+}
+async function addPasskey() {
+  signErr.value = ''; pkBusy.value = true
+  try {
+    // the server takes the user from the session; userName is only required by the protocol helper
+    await registerPasskey({ userName: account.value?.login ?? 'me', name: deviceName() } as any)
+    await refreshAccount()
+    toast.show(t('passkeyAdded'))
+  }
+  catch (e: any) {
+    if (e?.name === 'InvalidStateError') signErr.value = t('passkeyExists')
+    else if (e?.name !== 'NotAllowedError' && e?.name !== 'AbortError') signErr.value = errMsg(e, t('somethingWrong'))
+  }
+  finally { pkBusy.value = false }
+}
+async function delPasskey(id: string) {
+  signErr.value = ''
+  try { await $fetch(`/api/account/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE' }); await refreshAccount() }
+  catch (e) { signErr.value = errMsg(e, t('somethingWrong')) }
+}
+const pw = reactive({ current: '', next: '' })
+const pwBad = computed(() => pw.next.trim().length < 8 || (!!account.value?.hasPassword && !pw.current))
+async function changePassword() {
+  if (pwBad.value) return
+  signErr.value = ''
+  try {
+    await $fetch('/api/account/password', { method: 'POST', body: { current: pw.current || undefined, next: pw.next } })
+    Object.assign(pw, { current: '', next: '' })
+    await refreshAccount()
+    toast.show(t('passwordChanged'))
+  }
+  catch (e) { signErr.value = errMsg(e, t('somethingWrong')) }
+}
+async function logoutOthers() {
+  signErr.value = ''
+  try { await $fetch('/api/account/logout-others', { method: 'POST' }); toast.show(t('loggedOutOthers')) }
+  catch (e) { signErr.value = errMsg(e, t('somethingWrong')) }
+}
+const shortDate = (d: string | null) => d ? new Date(d).toLocaleDateString(intlTag[locale.value], { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
   await clear()
@@ -151,6 +201,29 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       <button type="submit" class="btn btn-block" :disabled="scBad">{{ t('save') }}</button>
     </form>
 
+    <section id="signin" class="card group">
+      <h2 class="section-title">{{ t('signInTitle') }}</h2>
+      <p class="hint">{{ t('yourLogin') }}: <b>{{ account?.login }}</b></p>
+      <p class="ll">{{ t('passkeys') }}</p>
+      <p class="hint">{{ passkeysSupported ? t('passkeysNote') : t('passkeysUnsupported') }}</p>
+      <div v-for="k in account?.passkeys ?? []" :key="k.id" class="line">
+        <span class="ml"><b>{{ k.name || t('passkey') }}</b><small>{{ t('passkeyAddedOn', { date: shortDate(k.createdAt) }) }} · {{ t('passkeyUsedOn', { date: shortDate(k.lastUsedAt) }) }}</small></span>
+        <button type="button" class="icon-btn" :aria-label="`${t('delete')} ${k.name || t('passkey')}`" @click="delPasskey(k.id)"><Icon name="trash" :size="18" /></button>
+      </div>
+      <button v-if="passkeysSupported" type="button" class="btn btn-block" :disabled="pkBusy" @click="addPasskey">{{ t('passkeyAdd') }}</button>
+      <form class="pref" @submit.prevent="changePassword">
+        <p class="ll">{{ account?.hasPassword ? t('changePassword') : t('setPassword') }}</p>
+        <input type="text" name="username" autocomplete="username" :value="account?.login" hidden>
+        <input v-if="account?.hasPassword" v-model="pw.current" class="input" type="password" autocomplete="current-password" :placeholder="t('currentPassword')">
+        <input v-model="pw.next" class="input" type="password" autocomplete="new-password" :placeholder="t('newPassword')">
+        <p class="hint">{{ t('passwordMin') }} {{ t('passwordOthersOut') }}</p>
+        <button type="submit" class="btn" :disabled="pwBad">{{ t('savePassword') }}</button>
+      </form>
+      <button type="button" class="btn btn-block" @click="logoutOthers">{{ t('logoutOthers') }}</button>
+      <NuxtLink v-if="account?.isAdmin" to="/users" class="btn btn-block plain">{{ t('usersTitle') }}</NuxtLink>
+      <p v-if="signErr" class="err" role="alert">{{ signErr }}</p>
+    </section>
+
     <section class="card group">
       <h2 class="section-title">{{ t('language') }}</h2>
       <div class="seg" role="group" :aria-label="t('language')">
@@ -199,7 +272,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 
     <button type="button" class="btn btn-block logout" @click="logout"><Icon name="logout" :size="20" />{{ t('logout') }}</button>
 
-    <p class="attribution about">{{ t('appName') }} · {{ t('signedInAs', { name: (user as any)?.id ?? '' }) }} · {{ locale }} · {{ t('offAttribution') }}</p>
+    <p class="attribution about">{{ t('appName') }} · {{ t('signedInAs', { name: account?.login ?? (user as any)?.id ?? '' }) }} · {{ locale }} · {{ t('offAttribution') }}</p>
   </div>
 </template>
 
@@ -222,6 +295,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 .hint { font-size: var(--fs-xs); color: var(--ink-2); }
 .err { color: var(--danger); font-size: var(--fs-sm); }
 .logout { color: var(--danger); background: var(--surface); box-shadow: var(--shadow-1); }
+.plain { text-decoration: none; }
 .about { text-align: center; }
 /* value text only: goal inputs (.input.num) keep --ink and --fs-input */
 .line > .num, p.num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--fs-sm); text-align: right; }

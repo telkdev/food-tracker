@@ -7,7 +7,7 @@ Status: build step 1 (skeleton) done. See `docs/decisions.md` for why things are
 ## Run locally
 
 ```bash
-cp .env.example .env          # set DATABASE_URL, NUXT_APP_SECRET (32+ chars), NUXT_APP_PASSWORD (12+ chars)
+cp .env.example .env          # set DATABASE_URL, NUXT_APP_SECRET (32+ chars), NUXT_APP_PASSWORD (12+ chars, first password of login "owner")
 npm install
 npm run db:migrate            # schema + settings row (kcal_goal = 2500)
 npm run db:import-artifact    # optional: entries exported from the interim artifact tracker

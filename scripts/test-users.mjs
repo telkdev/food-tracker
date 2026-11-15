@@ -1,6 +1,6 @@
 // Two users must never see or change each other's data, over the app API and over MCP.
 // Needs NUXT_USERS with a second user on the server. Writes only on 2020-01-02 and cleans up.
-// Usage: BASE_URL=http://localhost:3000 APP_PASSWORD=<owner> APP_PASSWORD_2=<second user> node scripts/test-users.mjs
+// Usage: BASE_URL=http://localhost:3000 APP_LOGIN=owner APP_PASSWORD=<owner> APP_LOGIN_2=<second login> APP_PASSWORD_2=<second user> node scripts/test-users.mjs
 import { createHash, randomBytes } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -10,8 +10,8 @@ const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1) } con
 const D = '2020-01-02'
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback'
 
-async function login(password) {
-  const r = await fetch(`${B}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) })
+async function login(login, password) {
+  const r = await fetch(`${B}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login, password }) })
   ok(r.status === 200, `login ${r.status}`)
   const cookie = r.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
   const api = async (path, init = {}) => {
@@ -39,9 +39,9 @@ async function mcpFor(cookie) {
   return async (name, args) => { const res = await mcp.callTool({ name, arguments: args }); return { err: res.isError, data: res.isError ? res.content[0].text : JSON.parse(res.content[0].text) } }
 }
 
-const A = await login(process.env.APP_PASSWORD)
-const Bu = await login(process.env.APP_PASSWORD_2)
-ok((await (await fetch(`${B}/api/_auth/session`, { headers: { cookie: Bu.cookie } })).json()).user.id !== 'owner', 'second password logs in as a different user')
+const A = await login(process.env.APP_LOGIN || 'owner', process.env.APP_PASSWORD)
+const Bu = await login(process.env.APP_LOGIN_2, process.env.APP_PASSWORD_2)
+ok((await (await fetch(`${B}/api/_auth/session`, { headers: { cookie: Bu.cookie } })).json()).user.id !== 'owner', 'second login is a different user')
 
 // A creates a product, an entry, a usual meal and a rule
 const prod = (await A.api('/api/products', { method: 'POST', body: { name: 'isolation test product', barcode: '4006381333931', per100: { kcal: 100, p: 1, f: 1, c: 1 }, source: 'label' } })).data

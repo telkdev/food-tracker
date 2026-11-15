@@ -1,8 +1,7 @@
 import type { H3Event } from 'h3'
 
 /**
- * Brute-force brake for the password-only login (a password alone picks the user, so a guess that hits
- * any user's password gets in). In memory: fine for one Render instance; a restart resets it.
+ * Brute-force brake for the login form. In memory: fine for one Render instance; a restart resets it.
  * - per IP: 5 wrong passwords per 15 min, then 429 until the window passes
  * - global: 30 wrong passwords per 15 min from all IPs together. X-Forwarded-For can be spoofed, so this cap
  *   is the real guard; the per-IP one just keeps a fat-fingered user from locking everyone else out early
