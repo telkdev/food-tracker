@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { macroEnergySplit } from '~/utils/format'
 const props = defineProps<{ p: number | null, f: number | null, c: number | null }>()
-const { t } = useT()
+const { t, n } = useT()
+// bar = share of energy; text = grams of each macro in this portion
 const s = computed(() => macroEnergySplit(props.p, props.f, props.c))
+const g = (v: number | null) => n(Math.max(0, v ?? 0), (v ?? 0) < 10 ? 1 : 0)
 const label = computed(() => s.value
-  ? `${t('protein')} ${s.value.p}%, ${t('fat')} ${s.value.f}%, ${t('carbs')} ${s.value.c}% ${t('kcal')}`
+  ? `${t('protein')} ${g(props.p)} ${t('g')}, ${t('fat')} ${g(props.f)} ${t('g')}, ${t('carbs')} ${g(props.c)} ${t('g')}`
   : '')
 </script>
 
@@ -16,9 +18,9 @@ const label = computed(() => s.value
       <i v-if="s.c" class="c" :style="{ flexGrow: s.c }" />
     </span>
     <span class="pct num" aria-hidden="true">
-      <span class="tp">{{ t('proteinShort') }} {{ s.p }}</span>
-      <span class="tf">{{ t('fatShort') }} {{ s.f }}</span>
-      <span class="tc">{{ t('carbsShort') }} {{ s.c }}%</span>
+      <span class="tp">{{ t('proteinShort') }} {{ g(p) }}</span>
+      <span class="tf">{{ t('fatShort') }} {{ g(f) }}</span>
+      <span class="tc">{{ t('carbsShort') }} {{ g(c) }} {{ t('g') }}</span>
     </span>
   </span>
 </template>
