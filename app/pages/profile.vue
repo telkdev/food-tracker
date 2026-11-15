@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MsgKey } from '~/utils/i18n'
 import type { ProfileData } from '~/utils/insights'
-import { errMsg } from '~/utils/format'
+import { errMsg, parseDecimal } from '~/utils/format'
 import { recommendTargets, type Activity, type Experience, type GoalType, type Sex } from '~~/shared/targets'
 
 // "About me": one question per screen, swipe or tap to move. Answers are saved as you go;
@@ -26,7 +26,7 @@ const a = reactive({
 type Opt = { v: string, icon: string, label: MsgKey, desc?: MsgKey, glyph?: string }
 type Step =
   | { key: 'goal_type' | 'sex' | 'activity' | 'experience', kind: 'choice', q: MsgKey, h: MsgKey, icon: string, opts: Opt[] }
-  | { key: 'birth_year' | 'height_cm' | 'weight_kg', kind: 'number', q: MsgKey, h: MsgKey, icon: string, min: number, max: number, step: number, unit: string, def: () => number }
+  | { key: 'birth_year' | 'height_cm' | 'weight_kg', kind: 'number', q: MsgKey, h: MsgKey, icon: string, min: number, max: number, step: number, unit: string, def: () => number, slider?: number }
   | { key: 'training_days', kind: 'chips', q: MsgKey, h: MsgKey, icon: string }
   | { key: 'result', kind: 'result' }
 
@@ -40,7 +40,7 @@ const steps: Step[] = [
     { v: 'm', icon: 'person', label: 'opt_sex_m', glyph: '♂' }, { v: 'f', icon: 'person', label: 'opt_sex_f', glyph: '♀' }] },
   { key: 'birth_year', kind: 'number', q: 'q_birth', h: 'q_birth_h', icon: 'cake', min: 1940, max: thisYear - 14, step: 1, unit: '', def: () => thisYear - 30 },
   { key: 'height_cm', kind: 'number', q: 'q_height', h: 'q_height_h', icon: 'ruler', min: 140, max: 215, step: 1, unit: 'cm', def: () => a.sex === 'f' ? 165 : 178 },
-  { key: 'weight_kg', kind: 'number', q: 'q_weight', h: 'q_weight_h', icon: 'scale', min: 40, max: 180, step: 0.1, unit: 'kg', def: () => a.sex === 'f' ? 65 : 80 },
+  { key: 'weight_kg', kind: 'number', q: 'q_weight', h: 'q_weight_h', icon: 'scale', min: 40, max: 180, step: 0.1, slider: 0.5, unit: 'kg', def: () => a.sex === 'f' ? 65 : 80 },
   { key: 'training_days', kind: 'chips', q: 'q_training', h: 'q_training_h', icon: 'dumbbell' },
   { key: 'activity', kind: 'choice', q: 'q_activity', h: 'q_activity_h', icon: 'walk', opts: [
     { v: 'sitting', icon: 'person', label: 'opt_act_sitting', desc: 'opt_act_sitting_d' },
@@ -94,6 +94,14 @@ function bump(s: Extract<Step, { kind: 'number' }>, dir: number) {
   ;(a as any)[s.key] = Math.round(Math.max(s.min, Math.min(s.max, v)) * 10) / 10
 }
 const numVal = (s: Extract<Step, { kind: 'number' }>) => (a as any)[s.key] ?? s.def()
+// typed value: comma or dot, clamped to the range on blur/enter
+function typeNum(s: Extract<Step, { kind: 'number' }>, ev: Event) {
+  const el = ev.target as HTMLInputElement
+  const v = parseDecimal(el.value)
+  if (Number.isFinite(v)) (a as any)[s.key] = Math.round(Math.max(s.min, Math.min(s.max, v)) * 10) / 10
+  el.value = fmtNumVal(s)
+}
+const fmtNumVal = (s: Extract<Step, { kind: 'number' }>) => s.step < 1 ? n(numVal(s), 1) : String(numVal(s))
 function setNum(s: Extract<Step, { kind: 'number' }>, ev: Event) {
   (a as any)[s.key] = Number((ev.target as HTMLInputElement).value)
 }
@@ -101,8 +109,16 @@ function setNum(s: Extract<Step, { kind: 'number' }>, ev: Event) {
 // ---- swipe ----
 const drag = ref(0)
 let x0 = 0, y0 = 0, mode: 'none' | 'x' | 'y' = 'none'
-function down(e: PointerEvent) { x0 = e.clientX; y0 = e.clientY; mode = 'none' }
+// a gesture counts only if it started on the card itself: dragging a slider, or anything marked
+// data-noswipe (the whole number picker), never moves the cards
+let active = false
+let swiped = false
+function down(e: PointerEvent) {
+  active = !(e.target as Element | null)?.closest('input, textarea, select, [data-noswipe]')
+  x0 = e.clientX; y0 = e.clientY; mode = 'none'
+}
 function move(e: PointerEvent) {
+  if (!active) return
   if (e.buttons === 0 && e.pointerType === 'mouse') return
   const dx = e.clientX - x0, dy = e.clientY - y0
   if (mode === 'none' && Math.abs(dx) > 10) mode = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
@@ -113,12 +129,19 @@ function move(e: PointerEvent) {
   }
 }
 function up() {
+  if (!active) { drag.value = 0; return }
+  active = false
+  swiped = mode === 'x' && Math.abs(drag.value) > 10
   if (mode === 'x') {
     if (drag.value < -60) go(idx.value + 1)
     else if (drag.value > 60) go(idx.value - 1)
   }
   drag.value = 0
   mode = 'none'
+}
+// the click that ends a swipe must not pick the option under the finger
+function eatClick(e: MouseEvent) {
+  if (swiped) { e.stopPropagation(); e.preventDefault(); swiped = false }
 }
 
 // ---- result ----
@@ -169,7 +192,7 @@ useHead({ title: () => `${t('profileTitle')} · ${t('appName')}` })
       <span class="cnt num">{{ idx < total ? t('qStep', { n: idx + 1, total }) : '' }}</span>
     </header>
 
-    <div class="viewport" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up">
+    <div class="viewport" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @click.capture="eatClick">
       <div class="track" :class="{ dragging: drag !== 0 }" :style="{ transform: `translateX(calc(${-idx * 100}% + ${drag}px))` }">
         <section v-for="(s, k) in steps" :key="s.key" class="slide" :aria-hidden="k !== idx" :inert="k !== idx">
           <template v-if="s.kind !== 'result'">
@@ -188,15 +211,20 @@ useHead({ title: () => `${t('profileTitle')} · ${t('appName')}` })
               </button>
             </div>
 
-            <div v-else-if="s.kind === 'number'" class="numq">
+            <div v-else-if="s.kind === 'number'" class="numq" data-noswipe>
               <div class="numrow">
                 <button type="button" class="step" :aria-label="'−'" @click="bump(s, -1)"><Icon name="minus" :size="24" /></button>
-                <span class="numv num">{{ s.step < 1 ? n(numVal(s), 1) : numVal(s) }}<small>{{ unitLabel(s.unit) }}</small></span>
+                <label class="numv">
+                  <input
+                    class="numin num" :inputmode="s.step < 1 ? 'decimal' : 'numeric'" :value="fmtNumVal(s)" :aria-label="t(s.q)"
+                    @focus="($event.target as HTMLInputElement).select()" @change="typeNum(s, $event)" @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+                  ><small>{{ unitLabel(s.unit) }}</small>
+                </label>
                 <button type="button" class="step" :aria-label="'+'" @click="bump(s, 1)"><Icon name="plus" :size="24" /></button>
               </div>
               <input
-                class="range" type="range" :min="s.min" :max="s.max" :step="s.step" :value="numVal(s)" :aria-label="t(s.q)"
-                @input="setNum(s, $event)" @pointerdown.stop
+                class="range" type="range" :min="s.min" :max="s.max" :step="s.slider ?? s.step" :value="numVal(s)" :aria-label="t(s.q)"
+                @input="setNum(s, $event)"
               >
               <div class="ticks num"><span>{{ s.min }}</span><span>{{ s.max }}</span></div>
             </div>
@@ -291,9 +319,15 @@ useHead({ title: () => `${t('profileTitle')} · ${t('appName')}` })
 .numrow { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
 .step { width: 56px; height: 56px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
 .step:active { background: var(--surface-2); }
-.numv { font-size: var(--fs-hero); font-weight: var(--fw-light); letter-spacing: -0.04em; }
+.numv { display: flex; align-items: baseline; justify-content: center; min-width: 0; flex: 1; }
+.numin { width: 4.2ch; min-width: 0; border: 0; border-bottom: 1.5px dashed var(--line-strong); background: none; padding: 0; text-align: center; color: var(--ink); font: inherit; font-size: var(--fs-hero); font-weight: var(--fw-light); letter-spacing: -0.04em; }
+.numin:focus { outline: none; border-bottom-color: var(--accent); }
 .numv small { font-size: var(--fs-lg); color: var(--ink-3); margin-left: 4px; letter-spacing: 0; }
-.range { width: 100%; accent-color: var(--accent); height: 32px; }
+.range { width: 100%; height: 44px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; touch-action: none; cursor: pointer; }
+.range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--track); }
+.range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--track); }
+.range::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -12px; border-radius: 50%; background: var(--accent); border: 4px solid var(--surface); box-shadow: 0 0 0 1px var(--line-strong); }
+.range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); border: 4px solid var(--surface); box-shadow: 0 0 0 1px var(--line-strong); }
 .ticks { display: flex; justify-content: space-between; font-size: var(--fs-2xs); color: var(--ink-3); }
 
 .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-3); margin-top: var(--s-4); }
