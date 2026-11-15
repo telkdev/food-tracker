@@ -10,7 +10,12 @@ export const per100Schema = z.object({
   p: z.number().min(0).max(100).describe('protein g per 100 g'),
   f: z.number().min(0).max(100).describe('fat g per 100 g'),
   c: z.number().min(0).max(100).describe('carbohydrates g per 100 g'),
+  // optional extras; omitted = unknown
+  fiber: z.number().min(0).max(100).optional().describe('fiber g per 100 g'),
+  sugar: z.number().min(0).max(100).optional().describe('sugars (total) g per 100 g'),
+  salt: z.number().min(0).max(100).optional().describe('salt g per 100 g (sodium × 2.5)'),
 }).refine(v => v.p + v.f + v.c <= 105, 'protein + fat + carbs cannot exceed 100 g per 100 g')
+  .refine(v => v.sugar === undefined || v.sugar <= v.c + 1, 'sugars are part of carbs: sugar cannot exceed carbs')
 
 export const logItemSchema = z.object({
   name: z.string().trim().min(1).max(200),

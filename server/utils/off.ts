@@ -8,7 +8,7 @@ export interface OffProduct {
   barcode: string
   name: string
   brand: string | null
-  per100: { kcal: number, p: number, f: number, c: number } | null
+  per100: { kcal: number, p: number, f: number, c: number, fiber?: number, sugar?: number, salt?: number } | null
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -64,7 +64,30 @@ export function mapNutriments(n: any): OffProduct['per100'] {
   if (!Number.isFinite(kcal) && Number.isFinite(Number(n.energy_100g))) kcal = Number(n.energy_100g) / 4.184 // kJ → kcal
   const p = Number(n.proteins_100g), f = Number(n.fat_100g), c = Number(n.carbohydrates_100g)
   if (![kcal, p, f, c].every(Number.isFinite)) return null
-  return { kcal: round2(kcal), p: round2(p), f: round2(f), c: round2(c) }
+  return { kcal: round2(kcal), p: round2(p), f: round2(f), c: round2(c), ...mapExtras(n, c) }
+}
+
+/**
+ * Fiber, sugars and salt when OFF has them. Salt falls back to sodium × 2.5.
+ * Values that break our sanity rules (sugar above carbs, anything outside 0–100 g) are dropped, not clamped:
+ * unknown is better than wrong.
+ */
+export function mapExtras(n: any, carbs: number) {
+  const num = (k: string) => {
+    if (n[k] === undefined || n[k] === null || n[k] === '') return undefined
+    const v = Number(n[k])
+    return Number.isFinite(v) && v >= 0 && v <= 100 ? round2(v) : undefined
+  }
+  const fiber = num('fiber_100g')
+  let sugar = num('sugars_100g')
+  if (sugar !== undefined && sugar > carbs + 1) sugar = undefined
+  let salt = num('salt_100g')
+  if (salt === undefined) { const na = num('sodium_100g'); if (na !== undefined && na * 2.5 <= 100) salt = round2(na * 2.5) }
+  return {
+    ...(fiber !== undefined ? { fiber } : {}),
+    ...(sugar !== undefined ? { sugar } : {}),
+    ...(salt !== undefined ? { salt } : {}),
+  }
 }
 
 const asText = (v: unknown) => (Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : '') || null

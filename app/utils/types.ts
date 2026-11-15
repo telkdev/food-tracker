@@ -3,7 +3,11 @@ export const MEALS: Meal[] = ['breakfast', 'lunch', 'dinner', 'snack']
 export type EntrySource = 'label' | 'off' | 'generic' | 'estimate' | 'lifesum'
 export type ProductSource = 'label' | 'off' | 'generic' | 'estimate'
 
-export interface Per100 { kcal: number, p: number, f: number, c: number }
+/** fiber / sugar (total sugars) / salt are optional: left out when unknown */
+export interface Per100 { kcal: number, p: number, f: number, c: number, fiber?: number, sugar?: number, salt?: number }
+export type ExtraKey = 'fiber' | 'sugar' | 'salt'
+/** grams eaten and the share of the day's kcal they are known for (0–1) */
+export type Extras = Record<ExtraKey, { g: number, coverage: number }>
 export interface Totals { kcal: number, p: number, f: number, c: number }
 
 export interface Entry {
@@ -17,6 +21,9 @@ export interface Entry {
   p: number | null
   f: number | null
   c: number | null
+  fiber?: number
+  sugar?: number
+  salt?: number
   source: EntrySource
   note: string | null
   product_id: string | null
@@ -27,6 +34,9 @@ export interface Day {
   date: string
   goal: { kcal: number, p: number | null, f: number | null, c: number | null }
   totals: Totals
+  extras?: Extras
+  /** daily reference values: fiber minimum, sugar and salt limits */
+  extras_goal?: Record<ExtraKey, number>
   remaining_kcal: number
   estimate_kcal?: number
   streak?: Streak

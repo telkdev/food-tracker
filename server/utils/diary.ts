@@ -3,13 +3,49 @@ import type { Entry, Product, Settings } from '../db/schema'
 import { computeStreak, type Streak } from './streak'
 
 const r1 = (n: number) => Math.round(n * 10) / 10
+const r2 = (n: number) => Math.round(n * 100) / 100
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+
+export type Nutrition100 = { kcal: number, p: number, f: number, c: number, fiber?: number, sugar?: number, salt?: number }
+type Extras100 = { fiber100: number | null, sugar100: number | null, salt100: number | null }
+
+/** Per-100 g values of a product or entry row; unknown extras are left out (not 0). */
+export function per100Of(r: { kcal100: number, p100: number, f100: number, c100: number } & Extras100): Nutrition100 {
+  return {
+    kcal: r.kcal100, p: r.p100, f: r.f100, c: r.c100,
+    ...(r.fiber100 != null ? { fiber: r.fiber100 } : {}),
+    ...(r.sugar100 != null ? { sugar: r.sugar100 } : {}),
+    ...(r.salt100 != null ? { salt: r.salt100 } : {}),
+  }
+}
+
+/** Nutrition100 → DB columns (extras null when unknown). */
+export function per100Cols(v: Nutrition100) {
+  return {
+    kcal100: v.kcal, p100: v.p, f100: v.f, c100: v.c,
+    fiber100: v.fiber ?? null, sugar100: v.sugar ?? null, salt100: v.salt ?? null,
+  }
+}
+
+/**
+ * Daily reference values for the extras, from the kcal goal:
+ * - fiber: at least 14 g per 1000 kcal (US DRI), never below 25 g (EFSA adequate intake);
+ * - sugar: 90 g, the EU reference intake for TOTAL sugars (fruit and milk included).
+ *   WHO's "<10 % of kcal" is about free/added sugars, which labels don't separate, so it would flag fruit and dairy;
+ * - salt: 5 g (WHO).
+ */
+export function extrasGoal(kcalGoal: number) {
+  return { fiber: Math.max(25, Math.round(kcalGoal * 14 / 1000)), sugar: 90, salt: 5 }
+}
 
 function publicEntry(e: Entry) {
   return {
     id: e.id, date: e.date, meal: e.meal, name: e.name, grams: e.grams,
-    per100: { kcal: e.kcal100, p: e.p100, f: e.f100, c: e.c100 },
+    per100: per100Of(e),
     kcal: e.kcal, p: e.p, f: e.f, c: e.c,
+    ...(e.fiber != null ? { fiber: e.fiber } : {}),
+    ...(e.sugar != null ? { sugar: e.sugar } : {}),
+    ...(e.salt != null ? { salt: e.salt } : {}),
     source: e.source, note: e.note, product_id: e.productId, logged_at: e.loggedAt,
   }
 }
@@ -17,7 +53,7 @@ function publicEntry(e: Entry) {
 function publicProduct(p: Product) {
   return {
     id: p.id, name: p.name, brand: p.brand, barcode: p.barcode,
-    per100: { kcal: p.kcal100, p: p.p100, f: p.f100, c: p.c100 },
+    per100: per100Of(p),
     source: p.source, note: p.note,
   }
 }
@@ -28,11 +64,29 @@ function totals(rows: { kcal: number | null, p: number | null, f: number | null,
   return { kcal: r1(t.kcal), p: r1(t.p), f: r1(t.f), c: r1(t.c) }
 }
 
+/**
+ * Fiber, sugar and salt eaten, plus how much of the day's kcal they are known for (0–1).
+ * Old entries and most estimates have no values, so a low coverage means the total is a lower bound.
+ */
+function extrasTotals(rows: { kcal: number | null, fiber: number | null, sugar: number | null, salt: number | null }[]) {
+  const kcal = rows.reduce((a, r) => a + (r.kcal ?? 0), 0)
+  const one = (k: 'fiber' | 'sugar' | 'salt', round: (n: number) => number) => {
+    const known = rows.filter(r => r[k] != null)
+    const knownKcal = known.reduce((a, r) => a + (r.kcal ?? 0), 0)
+    return {
+      g: round(known.reduce((a, r) => a + (r[k] ?? 0), 0)),
+      // entries with 0 kcal (water, coffee) don't move coverage
+      coverage: kcal > 0 ? r2(knownKcal / kcal) : (known.length ? 1 : 0),
+    }
+  }
+  return { fiber: one('fiber', r1), sugar: one('sugar', r1), salt: one('salt', r2) }
+}
+
 /** Translate Postgres CHECK violations into a readable 400. */
 function dbError(e: any): never {
   const code = e?.code ?? e?.cause?.code
   const constraint = e?.constraint_name ?? e?.cause?.constraint_name
-  if (code === '23514') throw createError({ statusCode: 400, statusMessage: `Value rejected by sanity check (${constraint}). Per-100 g values look wrong: kcal must be 0–950, protein+fat+carbs ≤ 100 g.` })
+  if (code === '23514') throw createError({ statusCode: 400, statusMessage: `Value rejected by sanity check (${constraint}). Per-100 g values look wrong: kcal must be 0–950, protein+fat+carbs ≤ 100 g, sugar ≤ carbs, fiber/sugar/salt 0–100 g.` })
   if (code === '23505') throw createError({ statusCode: 409, statusMessage: `Already exists (${constraint})` })
   throw e
 }
@@ -70,6 +124,9 @@ export async function getDay(uid: string, date?: string) {
     streak,
     goal: { kcal: s.kcalGoal, p: s.pGoal, f: s.fGoal, c: s.cGoal },
     totals: t,
+    // fiber / sugar / salt: grams and the share of kcal they are known for; goal = daily reference values
+    extras: extrasTotals(rows),
+    extras_goal: extrasGoal(s.kcalGoal),
     // kcal from guessed entries (source "estimate"): how approximate the day total is
     estimate_kcal: totals(rows.filter(r => r.source === 'estimate')).kcal,
     remaining_kcal: r1(s.kcalGoal - t.kcal),
@@ -113,13 +170,13 @@ export async function logFood(uid: string, input: LogFoodInput) {
   const values = input.items.map((item, i) => {
     const prod = item.product_id ? byId.get(item.product_id) : undefined
     if (item.product_id && !prod) throw createError({ statusCode: 400, statusMessage: `items[${i}]: product ${item.product_id} not found` })
-    const per100 = prod ? { kcal: prod.kcal100, p: prod.p100, f: prod.f100, c: prod.c100 } : item.per100
+    const per100 = prod ? per100Of(prod) : item.per100
     if (!per100) throw createError({ statusCode: 400, statusMessage: `items[${i}] (${item.name}): give product_id or per100` })
     const source = item.source ?? prod?.source
     if (!source) throw createError({ statusCode: 400, statusMessage: `items[${i}] (${item.name}): source is required without product_id` })
     return {
       userId: uid, date, meal, productId: prod?.id ?? null, name: item.name, grams: item.grams,
-      kcal100: per100.kcal, p100: per100.p, f100: per100.f, c100: per100.c,
+      ...per100Cols(per100),
       source, note: item.note ?? null,
     }
   })
@@ -210,7 +267,7 @@ export async function upsertProduct(uid: string, input: UpsertProductInput) {
   const barcode = input.barcode ? requireBarcode(input.barcode) : null
   const values = {
     userId: uid, name: input.name, brand: input.brand ?? null, barcode,
-    kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
+    ...per100Cols(input.per100),
     source: input.source, note: input.note ?? null,
   }
   const db = useDb()
@@ -249,7 +306,7 @@ export async function updateProduct(uid: string, id: string, input: UpsertProduc
   const barcode = input.barcode ? requireBarcode(input.barcode) : null
   const [row] = await useDb().update(schema.products).set({
     name: input.name, brand: input.brand ?? null, barcode,
-    kcal100: input.per100.kcal, p100: input.per100.p, f100: input.per100.f, c100: input.per100.c,
+    ...per100Cols(input.per100),
     source: input.source, note: input.note ?? null, updatedAt: new Date(),
   }).where(and(eq(schema.products.userId, uid), eq(schema.products.id, id))).returning().catch(dbError)
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Product not found' })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{ label: string, value: number, goal: number | null, color: string, energyShare: number }>()
+const props = defineProps<{ label: string, icon?: string, value: number, goal: number | null, color: string, energyShare: number }>()
 const { t, n } = useT()
 const frac = computed(() => props.goal ? Math.min(1, props.value / props.goal) : Math.min(1, props.energyShare))
 const over = computed(() => !!props.goal && props.value > props.goal * 1.05)
@@ -8,6 +8,7 @@ const over = computed(() => !!props.goal && props.value > props.goal * 1.05)
 <template>
   <div class="macro">
     <div class="top">
+      <Icon v-if="icon" :name="icon" :size="16" class="ico" :style="{ color }" />
       <span class="label">{{ label }}</span>
     </div>
     <div class="val num">
@@ -20,6 +21,8 @@ const over = computed(() => !!props.goal && props.value > props.goal * 1.05)
 
 <style scoped>
 .macro { display: grid; gap: 6px; min-width: 0; }
+.top { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.ico { flex: none; }
 .label { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-regular); }
 .val { font-size: var(--fs-sm); white-space: nowrap; }
 .val b { font-size: var(--fs-lg); font-weight: var(--fw-medium); letter-spacing: -0.01em; }
