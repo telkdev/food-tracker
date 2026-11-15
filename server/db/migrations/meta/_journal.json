@@ -64,6 +64,13 @@
       "when": 1794080000000,
       "tag": "0008_users_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794090000000,
+      "tag": "0009_profile",
+      "breakpoints": true
     }
   ]
 }

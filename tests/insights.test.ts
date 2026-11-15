@@ -159,3 +159,23 @@ describe('gaps', () => {
     expect(g?.params).toMatchObject({ missed: 6, days: 14 })
   })
 })
+
+describe('profile and weight rules', () => {
+  const entries = Array.from({ length: 10 }, (_, i) => sweetDay(addDays(TODAY, -1 - i))).flat()
+  const targets = { bmr: 1765, maintenance: 2500, kcal: 2250, p: 160, f: 65, c: 270, refKg: 80, bmi: 24.7, pPerKg: 2 }
+  it('a 200 g protein goal at 80 kg is flagged as higher than needed', () => {
+    const r = buildInsights({ today: TODAY, goal, entries, weightKg: 80, targets, weights: [{ date: TODAY, kg: 80 }] })
+    const hi = r.insights.find(i => i.id === 'proteinGoalHigh')
+    expect(hi?.params).toMatchObject({ goal: 200, rec: 160, perKg: 2.5 })
+    expect(ids(r)).not.toContain('noWeight')
+  })
+  it('weight trend for recomp: losing 0.5 kg a week is a cut', () => {
+    const weights = [{ date: addDays(TODAY, -14), kg: 81 }, { date: addDays(TODAY, -7), kg: 80.5 }, { date: addDays(TODAY, -1), kg: 80 }]
+    const r = buildInsights({ today: TODAY, goal, entries, weightKg: 80, weights })
+    expect(ids(r)).toContain('weightDown_recomp')
+  })
+  it('stale weigh-in asks to weigh again', () => {
+    const r = buildInsights({ today: TODAY, goal, entries, weightKg: 80, weights: [{ date: addDays(TODAY, -12), kg: 80 }] })
+    expect(ids(r)).toContain('weighIn')
+  })
+})

@@ -96,10 +96,38 @@ export const settings = pgTable('settings', {
   // Not diary entries; see server/utils/streak.ts.
   streakCarryDays: integer('streak_carry_days').notNull().default(0),
   streakCarryUntil: date('streak_carry_until', { mode: 'string' }),
+  // Profile from the Tips questionnaire (all optional). Used for advice and suggested goals, never for auth.
+  goalType: text('goal_type', { enum: ['recomp', 'cut', 'bulk'] }).notNull().default('recomp'),
+  sex: text('sex', { enum: ['m', 'f'] }),
+  birthYear: integer('birth_year'),
+  heightCm: integer('height_cm'),
+  // daily activity outside training: sitting job / some walking / on feet most of the day / physical work
+  activity: text('activity', { enum: ['sitting', 'light', 'active', 'physical'] }),
+  trainingDays: integer('training_days'),
+  experience: text('experience', { enum: ['new', 'returning', 'trained'] }),
+  profileDoneAt: timestamp('profile_done_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, t => [
   check('settings_kcal_goal_range', sql`${t.kcalGoal} between 800 and 8000`),
   check('settings_streak_carry_range', sql`${t.streakCarryDays} between 0 and 3650`),
+  check('settings_goal_type', sql`${t.goalType} in ('recomp', 'cut', 'bulk')`),
+  check('settings_sex', sql`${t.sex} in ('m', 'f')`),
+  check('settings_birth_year', sql`${t.birthYear} between 1920 and 2015`),
+  check('settings_height', sql`${t.heightCm} between 120 and 230`),
+  check('settings_activity', sql`${t.activity} in ('sitting', 'light', 'active', 'physical')`),
+  check('settings_training_days', sql`${t.trainingDays} between 0 and 7`),
+  check('settings_experience', sql`${t.experience} in ('new', 'returning', 'trained')`),
+])
+
+/** Body weight, one value per local day (a new weigh-in the same day replaces it). */
+export const weights = pgTable('weights', {
+  userId: userId(),
+  date: date('date', { mode: 'string' }).notNull(),
+  kg: numeric('kg', { precision: 5, scale: 1, mode: 'number' }).notNull(),
+  ...timestamps,
+}, t => [
+  primaryKey({ name: 'weights_pkey', columns: [t.userId, t.date] }),
+  check('weights_kg_range', sql`${t.kg} between 30 and 300`),
 ])
 
 // ---------- Memory for Claude: preferences and "my usual" meals ----------
