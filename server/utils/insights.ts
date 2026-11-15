@@ -9,7 +9,10 @@
  * so the advice never claims the goal is being reached; it checks the food side only.
  */
 
-export type GoalType = 'recomp' | 'cut' | 'bulk'
+import type { GoalType, Targets } from '../../shared/targets'
+import { weightTrend } from '../../shared/targets'
+
+export type { GoalType }
 export const GOAL_TYPES: GoalType[] = ['recomp', 'cut', 'bulk']
 export type InsightMeal = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -35,7 +38,11 @@ export interface InsightInput {
   today: string
   goal: { kcal: number, p: number | null, f: number | null, c: number | null }
   goalType?: GoalType
+  /** latest body weight (kg), and the weigh-ins of the last weeks for the trend */
   weightKg?: number | null
+  weights?: { date: string, kg: number }[]
+  /** suggested goals from the questionnaire (shared/targets.ts), when the profile is complete */
+  targets?: Targets | null
   /** entries of the last HISTORY_DAYS days before today */
   entries: InsightEntry[]
   streakDays?: number
@@ -136,7 +143,7 @@ export function buildInsights(input: InsightInput) {
   const span = Math.max(0, Math.round((Date.parse(to) - Date.parse(start)) / 86400_000) + 1)
   const missed = Math.max(0, span - logged.length)
 
-  const pTarget = goal.p ?? (input.weightKg ? r0(input.weightKg * (prof.pPerKg[0] + prof.pPerKg[1]) / 2) : null)
+  const pTarget = goal.p ?? input.targets?.p ?? (input.weightKg ? r0(input.weightKg * (prof.pPerKg[0] + prof.pPerKg[1]) / 2) : null)
   const avgKcal = avg(complete.map(d => d.kcal))
   const avgP = avg(complete.map(d => d.p))
   const avgF = avg(complete.map(d => d.f))
@@ -156,6 +163,10 @@ export function buildInsights(input: InsightInput) {
     p_target: pTarget,
     p_hit_days: hitDays,
     kcal_ok_days: kcalOkDays,
+    // for the charts: every logged day of the window, and average protein per meal over full days
+    days: logged.map(d => ({ date: d.date, kcal: r0(d.kcal), p: r0(d.p), f: r0(d.f), partial: !completeDates.has(d.date) })),
+    meal_p: Object.fromEntries((['breakfast', 'lunch', 'dinner', 'snack'] as InsightMeal[])
+      .map(m => [m, complete.length ? r0(avg(complete.map(d => d.mealsP[m] ?? 0))) : 0])) as Record<InsightMeal, number>,
   }
 
   const out: Insight[] = []
@@ -167,6 +178,7 @@ export function buildInsights(input: InsightInput) {
     push('noData', 'info', { days: complete.length, need: 3 })
     return finish(goalType, stats, out, input)
   }
+
   if (complete.length < 7) push('fewDays', 'info', { days: complete.length })
 
   // ---------- protein ----------
@@ -263,7 +275,42 @@ export function buildInsights(input: InsightInput) {
   return finish(goalType, stats, out, input)
 }
 
+/** Rules that need the profile or the weight log; they work even with too few diary days. */
+function bodyInsights(goalType: GoalType, input: InsightInput, out: Insight[]) {
+  const t = input.targets
+  const { goal } = input
+  // goals far from what the profile suggests
+  if (t && goal.p != null) {
+    const perKg = goal.p / t.refKg
+    if (perKg > 2.4) out.push({ id: 'proteinGoalHigh', level: 'tip', params: { goal: goal.p, perKg: Math.round(perKg * 10) / 10, rec: t.p } })
+    else if (perKg < 1.4) out.push({ id: 'proteinGoalLow', level: 'tip', params: { goal: goal.p, perKg: Math.round(perKg * 10) / 10, rec: t.p } })
+  }
+  if (t && Math.abs(goal.kcal - t.kcal) > t.kcal * 0.12) {
+    out.push({ id: goal.kcal > t.kcal ? 'kcalGoalHigh' : 'kcalGoalLow', level: 'tip', params: { goal: goal.kcal, rec: t.kcal, maint: t.maintenance } })
+  }
+
+  // weight trend, as % of body weight per week
+  const pts = input.weights ?? []
+  const last = pts.reduce<{ date: string, kg: number } | null>((m, p) => !m || p.date > m.date ? p : m, null)
+  const trend = weightTrend(pts, input.today)
+  if (trend && last) {
+    const pct = trend.perWeek / last.kg * 100
+    const params = { kg: trend.perWeek, pct: Math.round(pct * 100) / 100, n: trend.points }
+    // bands: recomp ±0.25%/wk; cut −0.5…−1%; bulk +0.1…+0.5%
+    const [lo, hi] = goalType === 'cut' ? [-1, -0.5] : goalType === 'bulk' ? [0.1, 0.5] : [-0.25, 0.25]
+    if (pct < lo) out.push({ id: `weightDown_${goalType}`, level: goalType === 'cut' && pct < -1.2 ? 'warn' : 'tip', params })
+    else if (pct > hi) out.push({ id: `weightUp_${goalType}`, level: 'tip', params })
+    else out.push({ id: `weightOk_${goalType}`, level: 'good', params })
+  }
+  if (last) {
+    const age = Math.round((Date.parse(`${input.today}T12:00:00Z`) - Date.parse(`${last.date}T12:00:00Z`)) / 86400_000)
+    if (age > 7) out.push({ id: 'weighIn', level: 'tip', params: { days: age } })
+    else if (!trend) out.push({ id: 'weighMore', level: 'info', params: { n: pts.length } })
+  }
+}
+
 function finish(goalType: GoalType, stats: Record<string, unknown>, out: Insight[], input: InsightInput) {
+  bodyInsights(goalType, input, out)
   // what the diary can't see: training, weight trend. Always shown, last.
   const prof = GOAL_PROFILES[goalType]
   out.push({ id: `basics_${goalType}`, level: 'info', params: { lo: prof.pPerKg[0], hi: prof.pPerKg[1] } })

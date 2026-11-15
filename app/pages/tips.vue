@@ -1,31 +1,42 @@
 <script setup lang="ts">
-import { messages, type MsgKey } from '~/utils/i18n'
+import type { MsgKey } from '~/utils/i18n'
+import type { InsightsData, WeighIn } from '~/utils/insights'
+import { errMsg, fmtDate, parseDecimal } from '~/utils/format'
 
-// Rule-based advice from the last 14 days (server/utils/insights.ts). Read-only.
-type Level = 'warn' | 'tip' | 'good' | 'info'
-interface Food { name: string, grams: number, kcal: number, p: number, f: number }
-interface Insight { id: string, level: Level, params: Record<string, string | number>, foods?: Food[] }
-interface Insights {
-  today: string
-  goal: { kcal: number, p: number | null, f: number | null, c: number | null }
-  goal_type: 'recomp' | 'cut' | 'bulk'
-  stats: {
-    window_days: number, complete_days: number, avg_kcal: number | null, avg_p: number | null,
-    p_target: number | null, kcal_ok_days: number
-  }
-  insights: Insight[]
-}
-
-const { t, n } = useT()
+// Rule-based advice from the last 14 days (server/utils/insights.ts). Read-only, except logging weight.
+const { t, n, locale } = useT()
+const toast = useToast()
 const requestFetch = useRequestFetch()
-const { data, error, refresh, pending } = await useAsyncData('insights', () => requestFetch<Insights>('/api/insights'))
+const { data, error, refresh, pending } = await useAsyncData('insights', () => requestFetch<InsightsData>('/api/insights'))
 
-const has = (k: string): k is MsgKey => k in messages.en
-// meal codes in params ("breakfast") are shown translated
-const params = (i: Insight) => Object.fromEntries(Object.entries(i.params).map(([k, v]) => [k, k === 'meal' && has(String(v)) ? t(v as MsgKey).toLowerCase() : typeof v === 'number' ? n(v, 1) : v]))
-const list = computed(() => (data.value?.insights ?? []).filter(i => has(`ins_${i.id}_t`)))
-// tips that point at foods to add vs foods to look at
-const ADD = new Set(['proteinLow', 'proteinDrop'])
+const s = computed(() => data.value?.stats)
+const rings = computed(() => {
+  const d = data.value
+  if (!d || !d.stats.complete_days) return []
+  const st = d.stats
+  return [
+    { k: 'kcal', label: t('tipsAvgKcal'), v: st.avg_kcal ?? 0, max: d.goal.kcal, text: n(st.avg_kcal), sub: t('tipsGoalOf', { n: n(d.goal.kcal) }) },
+    { k: 'p', label: t('tipsAvgP'), v: st.avg_p ?? 0, max: st.p_target ?? 0, text: n(st.avg_p), sub: st.p_target != null ? t('tipsGoalOf', { n: n(st.p_target) }) : t('tipsNoGoal') },
+    { k: 'days', label: t('tipsDaysOn'), v: st.kcal_ok_days, max: st.complete_days, text: `${st.kcal_ok_days}/${st.complete_days}`, sub: t('tipsDaysOnHint', { n: st.complete_days }) },
+  ]
+})
+
+const kg = ref('')
+const saving = ref(false)
+async function logWeight() {
+  const v = parseDecimal(kg.value)
+  if (!Number.isFinite(v) || v < 30 || v > 300) return
+  saving.value = true
+  try {
+    await $fetch<WeighIn>('/api/weights', { method: 'POST', body: { kg: v } })
+    kg.value = ''
+    toast.show(t('profileSaved'))
+    await refresh()
+  }
+  catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
+  finally { saving.value = false }
+}
+const weightDate = (iso: string) => fmtDate(locale.value, iso, { day: 'numeric', month: 'short' })
 
 useHead({ title: () => `${t('tipsTitle')} · ${t('appName')}` })
 </script>
@@ -33,8 +44,11 @@ useHead({ title: () => `${t('tipsTitle')} · ${t('appName')}` })
 <template>
   <div class="tips">
     <header class="top">
-      <h1>{{ t('tipsTitle') }}</h1>
-      <p v-if="data" class="sub">{{ t('tipsWindow', { days: data.stats.window_days, goal: t(`goal_${data.goal_type}` as MsgKey) }) }}</p>
+      <div>
+        <h1>{{ t('tipsTitle') }}</h1>
+        <p v-if="data" class="sub">{{ t('tipsWindow', { days: data.stats.window_days, goal: t(`goal_${data.goal_type}` as MsgKey) }) }}</p>
+      </div>
+      <NuxtLink to="/profile" class="me" :aria-label="t('profileEdit')"><Icon name="person" :size="20" /><span>{{ t('profileEdit') }}</span></NuxtLink>
     </header>
 
     <div v-if="error" class="card pad">
@@ -43,42 +57,43 @@ useHead({ title: () => `${t('tipsTitle')} · ${t('appName')}` })
     </div>
 
     <template v-else-if="data">
-      <section v-if="data.stats.complete_days" class="stats" :class="{ pending }">
-        <div class="stat card">
-          <span class="sl">{{ t('tipsAvgKcal') }}</span>
-          <span class="sv num">{{ data.stats.avg_kcal != null ? n(data.stats.avg_kcal) : '—' }}</span>
-          <span class="sh num">{{ t('tipsGoalOf', { n: n(data.goal.kcal) }) }}</span>
-        </div>
-        <div class="stat card">
-          <span class="sl">{{ t('tipsAvgP') }}</span>
-          <span class="sv num">{{ data.stats.avg_p != null ? n(data.stats.avg_p) : '—' }}<small> {{ t('g') }}</small></span>
-          <span class="sh num">{{ data.stats.p_target != null ? t('tipsGoalOf', { n: n(data.stats.p_target) }) : t('tipsNoGoal') }}</span>
-        </div>
-        <div class="stat card">
-          <span class="sl">{{ t('tipsDaysOn') }}</span>
-          <span class="sv num">{{ data.stats.kcal_ok_days }}<small> / {{ data.stats.complete_days }}</small></span>
-          <span class="sh">{{ t('tipsDaysOnHint', { n: data.stats.complete_days }) }}</span>
+      <NuxtLink v-if="!data.profile_done" to="/profile" class="cta card">
+        <span class="cta-ic"><Icon name="sparkle" :size="22" /></span>
+        <span class="cta-tx">
+          <strong>{{ t('profileCta_t') }}</strong>
+          <span>{{ t('profileCta_b') }}</span>
+        </span>
+        <Icon name="right" :size="20" class="chev" />
+      </NuxtLink>
+
+      <section v-if="rings.length" class="score card" :class="{ pending }" :aria-label="t('tipsScore')">
+        <div v-for="r in rings" :key="r.k" class="sc">
+          <ProgressRing :value="r.v" :max="r.max || 1" :size="84" :stroke="6" :label="r.label">
+            <span class="rv num">{{ r.text }}</span>
+          </ProgressRing>
+          <span class="rl">{{ r.label }}</span>
+          <span class="rs num">{{ r.sub }}</span>
         </div>
       </section>
 
-      <section class="list">
-        <article v-for="i in list" :key="i.id" class="ins card" :class="i.level">
-          <header class="th">
-            <span class="dot" aria-hidden="true" />
-            <span class="lvl">{{ t(`tipsLevel_${i.level}` as MsgKey) }}</span>
-          </header>
-          <h2>{{ t(`ins_${i.id}_t` as MsgKey, params(i)) }}</h2>
-          <p class="body">{{ t(`ins_${i.id}_b` as MsgKey, params(i)) }}</p>
-          <div v-if="i.foods?.length" class="foods">
-            <p class="fl">{{ ADD.has(i.id) ? t('tipsFoodsAdd') : t('tipsFoodsTop') }}</p>
-            <ul>
-              <li v-for="f in i.foods" :key="f.name">
-                <span class="fn">{{ f.name }}</span>
-                <span class="fv num">{{ n(f.grams) }} {{ t('g') }} · {{ n(f.kcal) }} {{ t('kcal') }} · {{ t('proteinShort') }} {{ n(f.p) }}<template v-if="i.id === 'fatOver'"> · {{ t('fatShort') }} {{ n(f.f) }}</template></span>
-              </li>
-            </ul>
+      <section class="wt card">
+        <div class="wh">
+          <span class="wic"><Icon name="scale" :size="20" /></span>
+          <div class="wtx">
+            <span class="wl">{{ t('weightTitle') }}</span>
+            <span v-if="data.weight" class="wv num">{{ n(data.weight.kg, 1) }} <small>{{ t('weightPh') }} · {{ weightDate(data.weight.date) }}</small></span>
+            <span v-else class="wv muted">{{ t('weightNone') }}</span>
           </div>
-        </article>
+        </div>
+        <VizSparkline v-if="data.weights.length > 1" :points="data.weights" :height="48" />
+        <form class="wf" @submit.prevent="logWeight">
+          <input v-model="kg" class="input num" inputmode="decimal" :placeholder="t('weightPh')" :aria-label="t('weightTitle')">
+          <button class="btn btn-primary" :disabled="saving || !kg">{{ t('weightLog') }}</button>
+        </form>
+      </section>
+
+      <section class="list">
+        <InsightCard v-for="i in data.insights" :key="i.id" :i="i" :data="data" />
       </section>
 
       <p class="muted foot">{{ t('tipsRules') }}</p>
@@ -88,37 +103,37 @@ useHead({ title: () => `${t('tipsTitle')} · ${t('appName')}` })
 
 <style scoped>
 .tips { display: grid; gap: var(--s-4); }
-.top { padding-top: var(--s-2); min-height: 56px; display: grid; align-content: center; gap: 2px; }
+.top { padding-top: var(--s-2); min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
 .top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
 .sub { font-size: var(--fs-xs); color: var(--ink-2); }
+.me { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 10px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); text-decoration: none; font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap; }
 .pad { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
 
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); transition: opacity var(--dur); }
-.stats.pending { opacity: .6; }
-.stat { padding: var(--s-3); display: grid; gap: 4px; min-width: 0; }
-.sl { font-size: var(--fs-2xs); color: var(--ink-2); }
-.sv { font-size: var(--fs-xl); font-weight: var(--fw-regular); letter-spacing: -0.02em; }
-.sv small { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0; }
-.sh { font-size: var(--fs-2xs); color: var(--ink-3); }
+.cta { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-4); text-decoration: none; color: var(--ink); background: var(--accent-soft); border-color: transparent; }
+.cta-ic { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.cta-tx { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.cta-tx strong { font-weight: var(--fw-bold); font-size: var(--fs-md); color: var(--accent-soft-ink); }
+.cta-tx span { font-size: var(--fs-xs); color: var(--ink-2); }
+.chev { color: var(--accent-soft-ink); }
+
+.score { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); padding: var(--s-4) var(--s-2); transition: opacity var(--dur); }
+.score.pending { opacity: .6; }
+.sc { display: grid; justify-items: center; gap: 4px; text-align: center; min-width: 0; }
+.rv { font-size: var(--fs-md); font-weight: var(--fw-medium); letter-spacing: -0.02em; }
+.rl { font-size: var(--fs-xs); color: var(--ink); margin-top: 4px; }
+.rs { font-size: var(--fs-2xs); color: var(--ink-3); }
+
+.wt { padding: var(--s-3) var(--s-4); display: grid; gap: var(--s-3); }
+.wh { display: flex; align-items: center; gap: var(--s-3); }
+.wic { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-2); }
+.wtx { flex: 1; min-width: 0; display: grid; }
+.wl { font-size: var(--fs-xs); color: var(--ink-3); }
+.wv { font-size: var(--fs-xl); font-weight: var(--fw-regular); letter-spacing: -0.02em; white-space: nowrap; }
+.wv small { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: 0; }
+.wf { display: flex; gap: var(--s-2); }
+.wf .input { flex: 1; min-width: 0; min-height: 40px; text-align: center; }
+.wf .btn { white-space: nowrap; min-height: 40px; padding: 0 14px; }
 
 .list { display: grid; gap: var(--s-3); }
-.ins { padding: var(--s-4); display: grid; gap: var(--s-2); --dot: var(--ink-3); }
-.ins.warn { --dot: var(--over); }
-.ins.tip { --dot: var(--accent); }
-.ins.good { --dot: color-mix(in srgb, var(--accent) 55%, var(--surface)); }
-.th { display: flex; align-items: center; gap: var(--s-2); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); }
-.lvl { font-size: var(--fs-2xs); color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; font-weight: var(--fw-medium); }
-.ins h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); letter-spacing: -0.01em; }
-.body { font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.5; }
-.ins.info h2 { font-weight: var(--fw-medium); }
-
-.foods { border-top: 1px solid var(--line); padding-top: var(--s-2); display: grid; gap: var(--s-1); }
-.fl { font-size: var(--fs-xs); color: var(--ink-3); }
-.foods ul { list-style: none; margin: 0; padding: 0; display: grid; }
-.foods li { display: grid; gap: 1px; padding: 6px 0; }
-.foods li + li { border-top: 1px solid var(--line); }
-.fn { font-size: var(--fs-sm); overflow-wrap: anywhere; }
-.fv { font-size: var(--fs-xs); color: var(--ink-3); }
 .foot { text-align: center; font-size: var(--fs-xs); padding-bottom: var(--s-4); }
 </style>
