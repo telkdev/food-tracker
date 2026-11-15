@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
-  boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid,
+  bigint, boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid,
 } from 'drizzle-orm/pg-core'
 
 /**
@@ -16,7 +16,7 @@ export const mealEnum = pgEnum('meal', ['breakfast', 'lunch', 'dinner', 'snack']
 // per-100 g value: up to 9999.99
 const per100 = (name: string) => numeric(name, { precision: 6, scale: 2, mode: 'number' })
 
-// Owner of a row: the user name from NUXT_USERS ("owner" is the NUXT_APP_PASSWORD user). Every query filters by it.
+// Owner of a row: users.id ("owner" is Vasyl, who had the app before multi-user). Every query filters by it.
 const userId = () => text('user_id').notNull()
 
 const timestamps = {
@@ -195,3 +195,43 @@ export const mcpCalls = pgTable('mcp_calls', {
   outTokens: integer('out_tokens').notNull(),
   ms: integer('ms').notNull(),
 }, t => [index('mcp_calls_user_at_idx').on(t.userId, t.at)])
+
+// ---------- Users and passkeys (until migration 0008 users lived in env) ----------
+
+export const users = pgTable('users', {
+  // stable key used as user_id everywhere; never changes ("owner", "nadia"...)
+  id: text('id').primaryKey(),
+  // what you type to log in; can be renamed without touching data
+  login: text('login').notNull().unique('users_login_unique'),
+  // greeting name ("Надя"); null → capitalised login, "Вася" for owner
+  name: text('name'),
+  // scrypt (nuxt-auth-utils hashPassword); null = can't log in with a password (invite pending or passkey only)
+  passwordHash: text('password_hash'),
+  isAdmin: boolean('is_admin').notNull().default(false),
+  // bumped by "log out everywhere" and password resets; session cookies carry it as `sv`
+  sessionVersion: integer('session_version').notNull().default(1),
+  // one-time link to set a password (new user or reset): sha256 of the token
+  inviteHash: text('invite_hash').unique('users_invite_hash_unique'),
+  inviteExpiresAt: timestamp('invite_expires_at', { withTimezone: true }),
+  disabledAt: timestamp('disabled_at', { withTimezone: true }),
+  ...timestamps,
+}, t => [
+  check('users_login_format', sql`${t.login} ~ '^[a-z0-9_]{1,30}$'`),
+  check('users_id_format', sql`${t.id} ~ '^[a-z0-9_]{1,30}$'`),
+])
+
+export const passkeys = pgTable('passkeys', {
+  // WebAuthn credential id (base64url)
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  publicKey: text('public_key').notNull(),
+  counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+  backedUp: boolean('backed_up').notNull().default(false),
+  transports: text('transports').array(),
+  name: text('name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+}, t => [index('passkeys_user_idx').on(t.userId)])
+
+export type User = typeof users.$inferSelect
+export type Passkey = typeof passkeys.$inferSelect

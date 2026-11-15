@@ -1,5 +1,5 @@
 // End-to-end check of OAuth (DCR, PKCE, consent, refresh rotation) and all MCP tools against a running server.
-// Writes test entries on 2026-11-07. Usage: BASE_URL=http://localhost:3000 APP_PASSWORD=... node scripts/test-oauth-mcp-flow.mjs
+// Writes test entries on 2026-11-07. Usage: BASE_URL=http://localhost:3000 APP_LOGIN=owner APP_PASSWORD=... node scripts/test-oauth-mcp-flow.mjs
 import { createHash, randomBytes } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -34,7 +34,7 @@ r = await fetch(`${as.authorization_endpoint}?${new URLSearchParams({ ...Object.
 ok(r.status === 400, 'unregistered redirect_uri → error page, no redirect')
 
 // 4. login, consent
-r = await fetch(`${B}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: process.env.APP_PASSWORD }) })
+r = await fetch(`${B}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: process.env.APP_LOGIN || 'owner', password: process.env.APP_PASSWORD }) })
 let cookie = r.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
 r = await fetch(`${as.authorization_endpoint}?${q}`, { headers: { cookie } })
 const html = await r.text()
