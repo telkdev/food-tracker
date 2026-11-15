@@ -75,6 +75,9 @@
   --estimate-soft: #f6ead6;
   --off: #2f6b8f;
   --off-soft: #e0ecf3;
+  --water: #3a86b0;
+  --water-ink: #24597a;
+  --water-soft: #e2eef5;
   --focus: #2e6a4e;
   --scrim: rgba(28, 24, 18, .32);
   --tabbar-bg: color-mix(in srgb, var(--surface) 82%, transparent); /* new */
@@ -113,6 +116,9 @@
     --estimate-soft: #33261a;
     --off: #8cc3e6;
     --off-soft: #1b2c37;
+    --water: #6fb6dc;
+    --water-ink: #9fd0ea;
+    --water-soft: #172a35;
     --focus: #86c9a4;
     --scrim: rgba(0, 0, 0, .55);
     --tabbar-bg: color-mix(in srgb, var(--bg) 80%, transparent);

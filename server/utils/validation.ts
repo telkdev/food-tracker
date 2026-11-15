@@ -49,6 +49,8 @@ export const goalsSchema = z.object({
   p_goal: z.number().int().min(0).max(1000).nullable().optional(),
   f_goal: z.number().int().min(0).max(1000).nullable().optional(),
   c_goal: z.number().int().min(0).max(2000).nullable().optional(),
+  /** null = suggested from the profile */
+  water_goal_ml: z.number().int().min(500).max(6000).nullable().optional(),
 })
 
 export const prefKeySchema = z.string().regex(/^[a-z0-9_]{1,40}$/, 'key: 1–40 chars of a-z, 0-9, _')

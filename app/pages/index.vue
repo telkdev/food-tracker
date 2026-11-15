@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Day, Entry, Meal, Pickable, Settings } from '~/utils/types'
+import type { Day, Entry, Meal, Pickable, Settings, Water } from '~/utils/types'
 import { MEALS } from '~/utils/types'
 import { addDays, diffDays, errMsg, fmtDate, mealNow } from '~/utils/format'
 import { slavicPlural } from '~/utils/i18n'
@@ -157,6 +157,12 @@ function onAdded(d: Day, created: Entry[], name: string) {
   })
 }
 
+// ---------- water ----------
+function onWater(w: Water) {
+  const d = cache.value[w.date] ?? (day.value?.date === w.date ? day.value : null)
+  if (d) setDay({ ...d, water: w })
+}
+
 // ---------- save a meal as "my usual" ----------
 async function saveUsual(meal: Meal) {
   const name = window.prompt(t('usualNamePrompt'), t(meal))?.trim()
@@ -270,6 +276,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
             <MacroBar v-for="m in macros" :key="m.key" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" />
           </div>
         </section>
+
+        <WaterCard v-if="day.water" :water="day.water" :date="day.date" @change="onWater" />
 
         <DayPlanCard v-if="rel === 0" :date="current" :stamp="`${day.totals.kcal}`" @added="onAdded" />
 

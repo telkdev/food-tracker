@@ -106,6 +106,8 @@ export const settings = pgTable('settings', {
   trainingDays: integer('training_days'),
   experience: text('experience', { enum: ['new', 'returning', 'trained'] }),
   profileDoneAt: timestamp('profile_done_at', { withTimezone: true }),
+  // daily drinking goal in ml; null = suggested from the profile (shared/water.ts)
+  waterGoalMl: integer('water_goal_ml'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, t => [
   check('settings_kcal_goal_range', sql`${t.kcalGoal} between 800 and 8000`),
@@ -117,6 +119,7 @@ export const settings = pgTable('settings', {
   check('settings_activity', sql`${t.activity} in ('sitting', 'light', 'active', 'physical')`),
   check('settings_training_days', sql`${t.trainingDays} between 0 and 7`),
   check('settings_experience', sql`${t.experience} in ('new', 'returning', 'trained')`),
+  check('settings_water_goal', sql`${t.waterGoalMl} between 500 and 6000`),
 ])
 
 /** Body weight, one value per local day (a new weigh-in the same day replaces it). */
@@ -129,6 +132,21 @@ export const weights = pgTable('weights', {
   primaryKey({ name: 'weights_pkey', columns: [t.userId, t.date] }),
   check('weights_kg_range', sql`${t.kg} between 30 and 300`),
 ])
+
+/** Drinks, one row per tap / log ("+250 ml"). The day total is the sum; undo deletes the row. */
+export const water = pgTable('water', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: userId(),
+  // local date in settings.timezone, like entries.date
+  date: date('date', { mode: 'string' }).notNull(),
+  ml: integer('ml').notNull(),
+  loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  check('water_ml_range', sql`${t.ml} between 1 and 3000`),
+  index('water_user_date_idx').on(t.userId, t.date),
+])
+
+export type Water = typeof water.$inferSelect
 
 // ---------- Memory for Claude: preferences and "my usual" meals ----------
 
