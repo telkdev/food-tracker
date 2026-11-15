@@ -104,6 +104,12 @@ const goal = computed(() => day.value?.goal.kcal ?? settings.value?.kcalGoal ?? 
 const remaining = computed(() => day.value?.remaining_kcal ?? goal.value)
 const over = computed(() => remaining.value < 0)
 const anyEstimate = computed(() => !!day.value && MEALS.some(m => day.value!.meals[m].entries.some(e => e.source === 'estimate')))
+// shrink the ring number as it gets longer so 4–5 digits (and "≈") fit inside the 156px ring
+const bigSize = computed(() => {
+  const digits = String(Math.round(Math.abs(remaining.value))).length
+  const units = digits * 0.6 + (digits > 3 ? 0.3 : 0) + (anyEstimate.value ? 0.4 : 0)
+  return `${Math.max(24, Math.min(40, Math.floor(100 / units)))}px`
+})
 // share of the day's kcal that comes from guesses: how much to trust the total
 const estimatePct = computed(() => {
   const est = day.value?.estimate_kcal ?? 0
@@ -250,7 +256,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
         <section class="hero card" :aria-label="t('kcalLeft')">
           <div class="hero-top">
             <ProgressRing :value="eaten" :max="goal" :size="156" :stroke="7" :label="`${n(eaten)} / ${n(goal)} ${t('kcal')}`">
-              <span class="big num" :class="{ over }"><span v-if="anyEstimate" class="approx">≈</span>{{ n(Math.abs(remaining)) }}</span>
+              <span class="big num" :class="{ over }" :style="{ fontSize: bigSize }"><span v-if="anyEstimate" class="approx">≈</span>{{ n(Math.abs(remaining)) }}</span>
               <span class="biglbl">{{ over ? t('kcalOver') : t('kcalLeft') }}</span>
             </ProgressRing>
             <dl class="stats">
@@ -314,7 +320,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .big .approx { font-size: .5em; font-weight: var(--fw-regular); color: var(--ink-3); margin-right: 2px; vertical-align: .32em; }
 .big { font-size: var(--fs-ring); font-weight: var(--fw-light); letter-spacing: -0.035em; line-height: 1; }
 .big.over { color: var(--over); }
-.biglbl { font-size: var(--fs-xs); color: var(--ink-2); margin-top: 6px; font-weight: var(--fw-regular); }
+.biglbl { max-width: 112px; margin: 6px auto 0; font-size: var(--fs-xs); line-height: 1.25; color: var(--ink-2); font-weight: var(--fw-regular); text-wrap: balance; }
 .stats { flex: 1; min-width: 0; margin: 0; display: grid; gap: var(--s-4); }
 .stats div { display: grid; gap: 2px; }
 .stats dt { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-regular); }
@@ -338,5 +344,5 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .fab:active { transform: scale(.97); }
 /* FAB is 52px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 52px more leaves a 16px gap */
 .fab-room { height: 52px; }
-@media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } .big { font-size: 2.125rem; } }
+@media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
 </style>
