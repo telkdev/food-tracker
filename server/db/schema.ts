@@ -26,11 +26,22 @@ const timestamps = {
 
 // Sanity limits: catch kJ-in-kcal mistakes and broken OFF records before they hit the diary.
 // Pure fat is ~900 kcal/100 g; protein + fat + carbs can't exceed 100 g per 100 g (small rounding slack).
-const nutritionChecks = (prefix: string, t: { kcal100: any, p100: any, f100: any, c100: any }) => [
+const nutritionChecks = (prefix: string, t: { kcal100: any, p100: any, f100: any, c100: any, fiber100: any, sugar100: any, salt100: any }) => [
   check(`${prefix}_kcal100_range`, sql`${t.kcal100} >= 0 and ${t.kcal100} <= 950`),
   check(`${prefix}_macros_nonneg`, sql`${t.p100} >= 0 and ${t.f100} >= 0 and ${t.c100} >= 0`),
   check(`${prefix}_macros_sum`, sql`${t.p100} + ${t.f100} + ${t.c100} <= 105`),
+  // optional extras (NULL = unknown, e.g. old entries and estimates). Fiber is not part of carbs on EU labels,
+  // so it is not bounded by c100; sugar is a part of carbs.
+  check(`${prefix}_extras_range`, sql`coalesce(${t.fiber100}, 0) between 0 and 100 and coalesce(${t.sugar100}, 0) between 0 and 100 and coalesce(${t.salt100}, 0) between 0 and 100`),
+  check(`${prefix}_sugar_in_carbs`, sql`${t.sugar100} is null or ${t.sugar100} <= ${t.c100} + 1`),
 ]
+
+// Fiber, sugars (total, not only added) and salt per 100 g, as on EU labels and in Open Food Facts. Nullable.
+const extras100 = () => ({
+  fiber100: per100('fiber100'),
+  sugar100: per100('sugar100'),
+  salt100: per100('salt100'),
+})
 
 export const products = pgTable('products', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -43,6 +54,7 @@ export const products = pgTable('products', {
   p100: per100('p100').notNull(),
   f100: per100('f100').notNull(),
   c100: per100('c100').notNull(),
+  ...extras100(),
   source: productSource('source').notNull(),
   note: text('note'),
   ...timestamps,
@@ -73,6 +85,11 @@ export const entries = pgTable('entries', {
   p: numeric('p', { precision: 9, scale: 2, mode: 'number' }).generatedAlwaysAs(sql`round(grams * p100 / 100, 2)`),
   f: numeric('f', { precision: 9, scale: 2, mode: 'number' }).generatedAlwaysAs(sql`round(grams * f100 / 100, 2)`),
   c: numeric('c', { precision: 9, scale: 2, mode: 'number' }).generatedAlwaysAs(sql`round(grams * c100 / 100, 2)`),
+  ...extras100(),
+  // NULL when the per-100 g value is unknown
+  fiber: numeric('fiber', { precision: 9, scale: 2, mode: 'number' }).generatedAlwaysAs(sql`round(grams * fiber100 / 100, 2)`),
+  sugar: numeric('sugar', { precision: 9, scale: 2, mode: 'number' }).generatedAlwaysAs(sql`round(grams * sugar100 / 100, 2)`),
+  salt: numeric('salt', { precision: 9, scale: 3, mode: 'number' }).generatedAlwaysAs(sql`round(grams * salt100 / 100, 3)`),
   source: entrySource('source').notNull(),
   note: text('note'),
   loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
@@ -148,7 +165,7 @@ export type SavedMealItem = {
   grams: number
   product_id: string | null
   // snapshot, used when the product was deleted or for items without a product
-  per100: { kcal: number, p: number, f: number, c: number }
+  per100: { kcal: number, p: number, f: number, c: number, fiber?: number, sugar?: number, salt?: number }
   source: 'label' | 'off' | 'generic' | 'estimate' | 'lifesum'
 }
 

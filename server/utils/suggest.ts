@@ -52,7 +52,7 @@ export async function suggestDayPlan(uid: string, input: SuggestPlanInput = {}) 
   for (const [key, list] of groups) {
     const last = list[list.length - 1]!
     const prod = last.productId ? prodById.get(last.productId) : undefined
-    const per100 = prod ? { kcal: prod.kcal100, p: prod.p100, f: prod.f100, c: prod.c100 } : { kcal: last.kcal100, p: last.p100, f: last.f100, c: last.c100 }
+    const per100 = prod ? per100Of(prod) : per100Of(last)
     const name = last.name
     if (ex.some(x => norm(name).includes(x) || x === key)) continue
     // oil, butter, lard: something you add to a dish, not a food to plan

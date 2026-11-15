@@ -121,9 +121,9 @@ const macros = computed(() => {
   const g = day.value?.goal
   const energy = tt.p * 4 + tt.f * 9 + tt.c * 4 || 1
   return [
-    { key: 'p', label: t('protein'), value: tt.p, goal: g?.p ?? null, color: 'var(--protein)', share: tt.p * 4 / energy },
-    { key: 'f', label: t('fat'), value: tt.f, goal: g?.f ?? null, color: 'var(--fat)', share: tt.f * 9 / energy },
-    { key: 'c', label: t('carbs'), value: tt.c, goal: g?.c ?? null, color: 'var(--carbs)', share: tt.c * 4 / energy },
+    { key: 'p', icon: 'protein', label: t('protein'), value: tt.p, goal: g?.p ?? null, color: 'var(--protein)', share: tt.p * 4 / energy },
+    { key: 'f', icon: 'fat', label: t('fat'), value: tt.f, goal: g?.f ?? null, color: 'var(--fat)', share: tt.f * 9 / energy },
+    { key: 'c', icon: 'carbs', label: t('carbs'), value: tt.c, goal: g?.c ?? null, color: 'var(--carbs)', share: tt.c * 4 / energy },
   ]
 })
 
@@ -267,9 +267,11 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
             </dl>
           </div>
           <div class="macros">
-            <MacroBar v-for="m in macros" :key="m.key" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" />
+            <MacroBar v-for="m in macros" :key="m.key" :icon="m.icon" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" />
           </div>
         </section>
+
+        <NutrientExtras v-if="day.extras && day.extras_goal" :extras="day.extras" :goal="day.extras_goal" :kcal="day.totals.kcal" />
 
         <DayPlanCard v-if="rel === 0" :date="current" :stamp="`${day.totals.kcal}`" @added="onAdded" />
 
