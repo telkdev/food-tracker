@@ -58,9 +58,10 @@ export async function setStreakCarry(uid: string, c: StreakCarryInput) {
 export async function getDay(uid: string, date?: string) {
   const s = await getSettings(uid)
   const day = date ?? localDate(s.timezone)
-  const [rows, streak] = await Promise.all([
+  const [rows, streak, activity] = await Promise.all([
     useDb().select().from(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.date, day))).orderBy(asc(schema.entries.loggedAt)),
     getStreak(uid, s),
+    getActivityDays(uid, day, day),
   ])
   const t = totals(rows)
   return {
@@ -72,6 +73,9 @@ export async function getDay(uid: string, date?: string) {
     // kcal from guessed entries (source "estimate"): how approximate the day total is
     estimate_kcal: totals(rows.filter(r => r.source === 'estimate')).kcal,
     remaining_kcal: r1(s.kcalGoal - t.kcal),
+    // steps / active kcal / workouts synced from the phone; null when nothing came for this day.
+    // Informational: the kcal goal already includes average activity, so active kcal are NOT added to it.
+    activity: activity[0] ?? null,
     meals: Object.fromEntries(MEALS.map((m) => {
       const list = rows.filter(r => r.meal === m)
       return [m, { totals: totals(list), entries: list.map(publicEntry) }]

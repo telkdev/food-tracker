@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { recommendTargets, weightTrend, type Profile } from '../shared/targets'
+import { recommendTargets, stepsFactor, weightTrend, type Profile } from '../shared/targets'
 
 const base: Profile = { goalType: 'recomp', sex: 'm', birthYear: 1993, heightCm: 180, activity: 'light', trainingDays: 3, experience: 'new' }
 
@@ -26,6 +26,24 @@ describe('recommendTargets', () => {
     expect(r.bmi).toBeGreaterThan(36)
     expect(r.refKg).toBeCloseTo(87.5, 0)
     expect(r.p).toBe(175)
+  })
+  it('steps replace the questionnaire activity after 7 days of data', () => {
+    expect(stepsFactor(3000)).toBe(1.2)
+    expect(stepsFactor(6000)).toBe(1.35)
+    expect(stepsFactor(12000)).toBe(1.65)
+    expect(stepsFactor(30000)).toBe(1.75)
+    expect(stepsFactor(500)).toBe(1.2)
+    const q = recommendTargets(base, 80, '2026-11-15')!
+    expect(q.activitySource).toBe('questionnaire')
+    // too few days: questionnaire still wins
+    expect(recommendTargets(base, 80, '2026-11-15', { avg: 12000, days: 4 })!.maintenance).toBe(q.maintenance)
+    const s = recommendTargets(base, 80, '2026-11-15', { avg: 12000, days: 10 })!
+    expect(s.activitySource).toBe('steps')
+    expect(s.avgSteps).toBe(12000)
+    expect(s.factor).toBeCloseTo(1.725, 3)
+    expect(s.maintenance).toBeGreaterThan(q.maintenance)
+    // steps cover a missing activity answer
+    expect(recommendTargets({ ...base, activity: null }, 80, '2026-11-15', { avg: 8000, days: 14 })).not.toBeNull()
   })
   it('null when data is missing', () => {
     expect(recommendTargets({ ...base, sex: null }, 80, '2026-11-15')).toBeNull()

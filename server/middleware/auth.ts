@@ -1,4 +1,5 @@
-// Everything under /api is private except health, login and invite endpoints. /mcp has its own bearer-token guard.
+// Everything under /api is private except health, login and invite endpoints. /mcp has its own bearer-token guard,
+// /api/ingest/* (phone activity) its own ingest token.
 const PUBLIC = ['/api/health', '/api/ping', '/api/auth/login', '/api/_auth/session', '/api/webauthn/authenticate', '/api/invite']
 
 export default defineEventHandler(async (event) => {
@@ -11,7 +12,7 @@ export default defineEventHandler(async (event) => {
     }
     return
   }
-  if (PUBLIC.includes(path)) return
+  if (PUBLIC.includes(path) || path.startsWith('/api/ingest/')) return
   const user = await sessionUser(event)
   if (!user) {
     // disabled user, revoked session ("log out everywhere"), idle too long, or not logged in

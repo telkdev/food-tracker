@@ -130,6 +130,46 @@ export const weights = pgTable('weights', {
   check('weights_kg_range', sql`${t.kg} between 30 and 300`),
 ])
 
+// ---------- Activity from the phone (Health Connect via HC Webhook, or a simple daily POST) ----------
+
+/**
+ * Raw activity pieces as the phone sends them: Health Connect records (key = record id), time buckets
+ * (key = "t:" + start instant) or whole days from the simple format (key = "day:" + date, daily = true).
+ * A resend with the same key replaces the row. Day totals are summed on read (server/utils/activity.ts).
+ */
+export const activitySamples = pgTable('activity_samples', {
+  userId: userId(),
+  kind: text('kind', { enum: ['steps', 'active_kcal', 'exercise'] }).notNull(),
+  key: text('key').notNull(),
+  // local date (user's timezone) of start_at
+  date: date('date', { mode: 'string' }).notNull(),
+  startAt: timestamp('start_at', { withTimezone: true }).notNull(),
+  endAt: timestamp('end_at', { withTimezone: true }),
+  // steps: count; active_kcal: kcal; exercise: minutes
+  value: numeric('value', { precision: 9, scale: 1, mode: 'number' }).notNull(),
+  // exercise type ("running", "strength_training"...)
+  label: text('label'),
+  // package of the app that wrote it in Health Connect, or "api"
+  origin: text('origin'),
+  daily: boolean('daily').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  primaryKey({ name: 'activity_samples_pkey', columns: [t.userId, t.kind, t.key] }),
+  index('activity_samples_user_date_idx').on(t.userId, t.date),
+  check('activity_samples_kind', sql`${t.kind} in ('steps', 'active_kcal', 'exercise')`),
+  check('activity_samples_value_range', sql`${t.value} >= 0 and ${t.value} <= 200000`),
+])
+
+/** One ingest token per user for the phone (sha256 only; the token is shown once). Not a login. */
+export const ingestTokens = pgTable('ingest_tokens', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique('ingest_tokens_hash_unique'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  // app_version / user agent of the last sync, to show "last sync from HC Webhook 1.9" in Settings
+  lastClient: text('last_client'),
+})
+
 // ---------- Memory for Claude: preferences and "my usual" meals ----------
 
 /** Free-text rules Claude must follow (how food is weighed, oil/sauce habits...). Returned by get_context. */

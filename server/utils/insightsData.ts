@@ -9,12 +9,13 @@ export async function getInsights(uid: string, goalOverride?: GoalType) {
   const s = await getSettings(uid)
   const today = localDate(s.timezone)
   const e = schema.entries
-  const [rows, streak, weights] = await Promise.all([
+  const [rows, streak, weights, steps] = await Promise.all([
     useDb().select().from(e)
       .where(and(eq(e.userId, uid), gte(e.date, addDaysIso(today, -HISTORY_DAYS)), lt(e.date, today)))
       .orderBy(asc(e.loggedAt)),
     getStreak(uid, s),
     getWeights(uid, today, 60),
+    getStepsSummary(uid, today),
   ])
   const entries: InsightEntry[] = rows.map((r) => {
     const at = new Date(r.loggedAt)
@@ -28,7 +29,7 @@ export async function getInsights(uid: string, goalOverride?: GoalType) {
   })
   const profile = { ...profileOf(s), goalType: goalOverride ?? s.goalType }
   const weightKg = weights.at(-1)?.kg ?? null
-  const targets = recommendTargets(profile, weightKg, today)
+  const targets = recommendTargets(profile, weightKg, today, steps.average)
   const goal = { kcal: s.kcalGoal, p: s.pGoal, f: s.fGoal, c: s.cGoal }
   return {
     today,
@@ -37,6 +38,7 @@ export async function getInsights(uid: string, goalOverride?: GoalType) {
     weight: weights.at(-1) ?? null,
     weights,
     targets,
-    ...buildInsights({ today, goal, goalType: profile.goalType, entries, streakDays: streak.days, weightKg, weights, targets }),
+    activity: steps.days,
+    ...buildInsights({ today, goal, goalType: profile.goalType, entries, streakDays: streak.days, weightKg, weights, targets, activity: steps.days }),
   }
 }

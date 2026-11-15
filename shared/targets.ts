@@ -26,6 +26,18 @@ export const ACTIVITY_FACTOR: Record<Activity, number> = { sitting: 1.2, light: 
 /** per strength session a week; 4 sessions ≈ +0.1 */
 export const TRAINING_FACTOR = 0.025
 
+/**
+ * Activity factor from measured steps (phone / watch), replacing the questionnaire answer when there's
+ * enough data. Linear through the questionnaire levels: ~3k steps = sitting 1.2, ~6k = light 1.35,
+ * ~9k = active 1.5, ~12k = physical 1.65; capped at 1.75. An average over weeks, never one day:
+ * a phone's per-day "active kcal" is too noisy to eat back.
+ */
+export function stepsFactor(avgSteps: number) {
+  return Math.round(Math.min(1.75, Math.max(1.2, 1.2 + 0.05 * (avgSteps - 3000) / 1000)) * 1000) / 1000
+}
+/** Days with step data (in the last 14) needed before steps replace the questionnaire. */
+export const MIN_STEP_DAYS = 7
+
 /** kcal multiplier on maintenance and protein g/kg, by goal (and, for recomp/bulk, experience) */
 export function goalAdjust(goal: GoalType, exp: Experience | null) {
   if (goal === 'cut') return { kcal: 0.8, pPerKg: 2.2 }
@@ -51,15 +63,29 @@ export interface Targets {
   refKg: number
   bmi: number
   pPerKg: number
+  /** where the daily activity part of the factor came from */
+  activitySource: 'steps' | 'questionnaire'
+  /** average daily steps used, when activitySource is 'steps' */
+  avgSteps: number | null
+  /** total activity factor (daily activity + training) */
+  factor: number
 }
 
-/** null when something needed is missing (sex, age, height, weight, activity). */
-export function recommendTargets(p: Profile, weightKg: number | null, today: string): Targets | null {
-  if (!p.sex || !p.birthYear || !p.heightCm || !weightKg || !p.activity) return null
+/** Measured steps: average over the days that have data, and how many days that is. */
+export interface StepsInput { avg: number, days: number }
+
+/**
+ * null when something needed is missing (sex, age, height, weight, and activity unless steps cover it).
+ * With steps from MIN_STEP_DAYS+ days, the daily activity comes from steps instead of the questionnaire.
+ */
+export function recommendTargets(p: Profile, weightKg: number | null, today: string, steps?: StepsInput | null): Targets | null {
+  const useSteps = !!steps && steps.days >= MIN_STEP_DAYS
+  if (!p.sex || !p.birthYear || !p.heightCm || !weightKg || (!p.activity && !useSteps)) return null
   const age = ageOf(p.birthYear, today)
   const h = p.heightCm
   const bmr = 10 * weightKg + 6.25 * h - 5 * age + (p.sex === 'm' ? 5 : -161)
-  const factor = ACTIVITY_FACTOR[p.activity] + TRAINING_FACTOR * Math.min(7, p.trainingDays ?? 0)
+  const daily = useSteps ? stepsFactor(steps!.avg) : ACTIVITY_FACTOR[p.activity!]
+  const factor = daily + TRAINING_FACTOR * Math.min(7, p.trainingDays ?? 0)
   const maintenance = bmr * factor
   const adj = goalAdjust(p.goalType, p.experience)
   const kcal = Math.max(p.sex === 'm' ? 1500 : 1200, round(maintenance * adj.kcal, 50))
@@ -71,6 +97,8 @@ export function recommendTargets(p: Profile, weightKg: number | null, today: str
   return {
     bmr: Math.round(bmr), maintenance: round(maintenance, 50), kcal, p: prot, f: fat, c: carbs,
     refKg: Math.round(refKg * 10) / 10, bmi: Math.round(bmi * 10) / 10, pPerKg: adj.pPerKg,
+    activitySource: useSteps ? 'steps' : 'questionnaire', avgSteps: useSteps ? Math.round(steps!.avg) : null,
+    factor: Math.round(factor * 1000) / 1000,
   }
 }
 

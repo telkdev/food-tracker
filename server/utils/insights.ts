@@ -11,6 +11,7 @@
 
 import type { GoalType, Targets } from '../../shared/targets'
 import { weightTrend } from '../../shared/targets'
+import { MIN_DAY_STEPS } from './activityParse'
 
 export type { GoalType }
 export const GOAL_TYPES: GoalType[] = ['recomp', 'cut', 'bulk']
@@ -46,6 +47,8 @@ export interface InsightInput {
   /** entries of the last HISTORY_DAYS days before today */
   entries: InsightEntry[]
   streakDays?: number
+  /** steps synced from the phone, days before today (only days with data) */
+  activity?: { date: string, steps: number | null }[]
 }
 
 export type InsightLevel = 'warn' | 'tip' | 'good' | 'info'
@@ -77,6 +80,8 @@ export const WINDOW_DAYS = 14
 export const HISTORY_DAYS = 60
 /** A day under this share of the kcal goal is treated as not fully logged. */
 export const PARTIAL_DAY = 0.4
+/** Daily steps the steps card compares to (enough daily movement for most adults; not a hard rule). */
+export const STEPS_TARGET = 8000
 
 const LEVEL_ORDER: Record<InsightLevel, number> = { warn: 0, tip: 1, good: 2, info: 3 }
 
@@ -302,6 +307,17 @@ function bodyInsights(goalType: GoalType, input: InsightInput, out: Insight[]) {
     else if (pct > hi) out.push({ id: `weightUp_${goalType}`, level: 'tip', params })
     else out.push({ id: `weightOk_${goalType}`, level: 'good', params })
   }
+  // steps from the phone: a daily-movement check (training isn't steps, so this is about NEAT)
+  const stepDays = (input.activity ?? []).filter(d => d.steps != null && d.steps >= MIN_DAY_STEPS)
+  if (stepDays.length >= 5) {
+    const avg = Math.round(sum(stepDays.map(d => d.steps!)) / stepDays.length)
+    const over = stepDays.filter(d => d.steps! >= STEPS_TARGET).length
+    const params = { avg, days: stepDays.length, over, target: STEPS_TARGET, factor: t?.activitySource === 'steps' ? t.factor : 0 }
+    if (avg < 6000) out.push({ id: 'stepsLow', level: 'tip', params })
+    else if (avg >= STEPS_TARGET) out.push({ id: 'stepsOk', level: 'good', params })
+    else out.push({ id: 'stepsMid', level: 'info', params })
+  }
+
   if (last) {
     const age = Math.round((Date.parse(`${input.today}T12:00:00Z`) - Date.parse(`${last.date}T12:00:00Z`)) / 86400_000)
     if (age > 7) out.push({ id: 'weighIn', level: 'tip', params: { days: age } })

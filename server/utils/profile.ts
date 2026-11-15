@@ -48,7 +48,7 @@ export async function setWeight(uid: string, kg: number, date?: string) {
 export async function getProfile(uid: string) {
   const s = await getSettings(uid)
   const today = localDate(s.timezone)
-  const weights = await getWeights(uid, today)
+  const [weights, steps] = await Promise.all([getWeights(uid, today), getStepsSummary(uid, today)])
   const last = weights.at(-1) ?? null
   const p = profileOf(s)
   return {
@@ -61,7 +61,9 @@ export async function getProfile(uid: string) {
     weight: last,
     weights,
     goal: { kcal: s.kcalGoal, p: s.pGoal, f: s.fGoal, c: s.cGoal },
-    recommended: recommendTargets(p, last?.kg ?? null, today),
+    // average steps of the last 14 days (phone sync); with 7+ days it replaces the "activity" answer
+    steps: steps.average,
+    recommended: recommendTargets(p, last?.kg ?? null, today, steps.average),
   }
 }
 
