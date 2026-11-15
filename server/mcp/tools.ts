@@ -260,6 +260,34 @@ export function buildMcpServer(uid: string) {
     }
   }))
 
+  server.registerTool('list_missing_nutrients', {
+    title: 'Foods missing fiber, sugar or salt',
+    description: 'Read-only. Foods in his diary whose fiber, sugar or salt per 100 g is unknown, grouped: key (pass to fill_nutrients), name, source, per100 (known values), barcode (if a saved product has one), entries (how many diary entries), missing (which values). Use it before fill_nutrients when he asks to fill these values for past days.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  }, tool('list_missing_nutrients', async () => {
+    const list = await listMissingNutrients(uid)
+    return { foods: list.map(g => [g.key, g.name, g.source, g.per100.kcal, g.per100.c, g.barcode, g.entries, g.missing.join('+')]), format: '[key, name, source, kcal100, carbs100, barcode, entries, missing]' }
+  }))
+
+  server.registerTool('fill_nutrients', {
+    title: 'Fill fiber, sugar, salt for past food',
+    description: [
+      'Fills ONLY unknown fiber / sugar / salt (per 100 g) on saved products and past diary entries; known values are never overwritten, nothing else changes.',
+      'off: true looks up products with a barcode in Open Food Facts (slow, ~14 per minute). items: values per 100 g for keys from list_missing_nutrients.',
+      'Give values only where you are confident: generic reference values for generic foods (USDA/Polish tables), your best estimate for entries whose source is already "estimate". For a food logged from a label that did not print a value, leave it out (unknown is better than invented).',
+      'Always run with dry_run true first and show him the summary; apply only after he agrees.',
+    ].join(' '),
+    inputSchema: {
+      dry_run: z.boolean().optional(),
+      off: z.boolean().optional(),
+      items: z.array(z.object({ key: z.string(), fiber: z.number().optional(), sugar: z.number().optional(), salt: z.number().optional() })).max(300).optional(),
+    },
+  }, tool('fill_nutrients', async (args: { dry_run?: boolean, off?: boolean, items?: FillItem[] }) => {
+    const r = await fillNutrients(uid, args)
+    return r.dry_run && 'plan' in r && r.plan ? { ...r, plan: r.plan.map(p => [p.key, p.name, p.from === 'off' ? 'off' : p.source, p.entries, p.values]) } : r
+  }))
+
   server.registerTool('log_water', {
     title: 'Log water',
     description: [
