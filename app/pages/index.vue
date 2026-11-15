@@ -227,16 +227,17 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 <template>
   <div class="today" @touchstart.passive="touchStart" @touchend.passive="touchEnd">
     <header class="top">
+      <p class="eyebrow">
+        <template v-if="rel === 0"><span class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</span><span class="sep" aria-hidden="true"> · </span></template><span class="date">{{ eyebrow }}</span>
+      </p>
       <div class="when">
-        <p v-if="rel === 0" class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</p>
-        <p class="eyebrow">{{ eyebrow }}</p>
         <div class="trow">
           <h1>{{ title }}</h1>
           <button v-if="rel !== 0" type="button" class="todaypill" @click="go(today)">{{ t('today') }}</button>
+          <p v-if="streak" class="streak" :class="{ milestone: streak.milestone, open: !streak.today_logged }" :title="streak.today_logged ? undefined : t('streakOpen')">
+            <span class="num">{{ streakText }}</span><template v-if="!streak.today_logged"> · {{ t('streakOpenShort') }}</template>
+          </p>
         </div>
-        <p v-if="streak" class="streak" :class="{ milestone: streak.milestone, open: !streak.today_logged }" :title="streak.today_logged ? undefined : t('streakOpen')">
-          <span class="num">{{ streakText }}</span><template v-if="!streak.today_logged"> · {{ t('streakOpenShort') }}</template>
-        </p>
       </div>
       <div class="nav">
         <button type="button" class="icon-btn" :aria-label="t('prevDay')" @click="shift(-1)"><Icon name="left" /></button>
@@ -290,20 +291,22 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 </template>
 
 <style scoped>
-.today { display: grid; gap: var(--s-5); min-height: 70dvh; }
-.top { display: flex; align-items: flex-end; gap: var(--s-2); padding-top: var(--s-3); }
+.today { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-5); min-height: 70dvh; }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--s-2); padding-top: 0; }
+.top .eyebrow { grid-column: 1 / -1; }
 .when { flex: 1; min-width: 0; }
-.hello { font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--ink-2); margin-bottom: 0; }
-.eyebrow { font-size: var(--fs-sm); color: var(--ink-3); font-weight: var(--fw-regular); }
-.eyebrow::first-letter, .trow h1::first-letter { text-transform: uppercase; }
-.trow { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.hello { color: var(--ink-2); }
+.eyebrow { font-size: var(--fs-sm); color: var(--ink-3); font-weight: var(--fw-regular); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.eyebrow .date { display: inline-block; }
+.eyebrow .date::first-letter, .trow h1::first-letter { text-transform: uppercase; }
+.trow { display: flex; align-items: baseline; gap: var(--s-2) var(--s-3); flex-wrap: wrap; }
 .trow h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; margin-top: 2px; }
 .todaypill {
   min-height: 32px; padding: 0 var(--s-3); border: 0; border-radius: var(--r-pill);
   background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); position: relative;
 }
 .todaypill::after { content: ''; position: absolute; inset: -6px -2px; }
-.streak { margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-regular); justify-self: start; width: fit-content; }
+.streak { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-regular); justify-self: start; width: fit-content; }
 .streak .num { font-weight: var(--fw-medium); color: var(--ink); }
 .streak.open .num { color: var(--ink-2); }
 /* quiet mark on 10, 20, 30, 50, 100 … days: a soft pill, nothing more */
