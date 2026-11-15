@@ -56,15 +56,13 @@ useHead({ title: () => `${t('login')} · ${t('appName')}` })
 .login {
   min-height: 100dvh; display: grid; place-items: center;
   padding: max(var(--s-6), env(safe-area-inset-top)) var(--s-4) max(var(--s-6), env(safe-area-inset-bottom));
-  background:
-    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
-    var(--bg);
+  background: var(--bg);
 }
 .wrap { width: 100%; max-width: 380px; display: grid; gap: var(--s-6); }
 .brand { display: grid; justify-items: center; gap: var(--s-2); text-align: center; }
-.logo { border-radius: 20px; box-shadow: var(--shadow-2); margin-bottom: var(--s-2); }
-.brand h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
-.form { padding: var(--s-5); display: grid; gap: var(--s-3); }
+.logo { border-radius: 20px; box-shadow: none; margin-bottom: var(--s-2); }
+.brand h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
+.form { padding: var(--s-6) var(--s-5); display: grid; gap: var(--s-3); }
 .pw { position: relative; display: block; }
 .pw .input { padding-right: 52px; }
 .eye { position: absolute; right: 2px; top: 2px; }

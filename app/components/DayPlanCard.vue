@@ -129,27 +129,27 @@ const after = computed(() => {
 
 <style scoped>
 .plan { overflow: hidden; }
-.ph { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); min-height: 60px; }
+.ph { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4); min-height: 60px; }
 .pt { flex: 1; min-width: 0; }
-.pt h2 { font-size: var(--fs-lg); }
-.hint { font-size: var(--fs-xs); color: var(--ink-2); }
+.pt h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.hint { font-size: var(--fs-xs); color: var(--ink-2); margin-top: 2px; }
 .pad { padding: 0 var(--s-4) var(--s-4); }
-.sug { color: var(--accent-soft-ink); background: var(--accent-soft); }
+.sug { color: var(--accent-soft-ink); background: var(--accent-soft); font-weight: var(--fw-medium); }
 .items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .item { display: flex; align-items: center; gap: var(--s-1); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); }
 .item + .item { border-top: 1px solid var(--line); }
 .item.done { opacity: .55; }
 .it { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.name { font-weight: var(--fw-medium); overflow-wrap: anywhere; }
-.sub { font-size: var(--fs-xs); color: var(--ink-2); }
+.name { font-weight: var(--fw-book); overflow-wrap: anywhere; }
+.sub { font-size: var(--fs-xs); color: var(--ink-3); }
 .add {
   flex: none; width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; border-radius: 50%;
-  background: var(--accent-soft); color: var(--accent-soft-ink);
+  background: radial-gradient(circle, var(--accent-soft) 15.5px, transparent 16px); color: var(--accent-soft-ink);
 }
-.add:active { background: var(--accent); color: var(--accent-ink); }
+.add:active { background: radial-gradient(circle, var(--accent) 15.5px, transparent 16px); color: var(--accent-ink); }
 .ok { color: var(--accent); margin: 0 var(--s-3); }
 .foot { border-top: 1px solid var(--line); padding: var(--s-3) var(--s-4); display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
 .after { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-sm); display: flex; gap: var(--s-2); flex-wrap: wrap; }
 .after .lbl { color: var(--ink-2); }
-.after .bad { color: var(--over); font-weight: var(--fw-bold); }
+.after .bad { color: var(--over); font-weight: var(--fw-medium); }
 </style>

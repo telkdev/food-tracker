@@ -25,21 +25,24 @@ const hasEstimate = computed(() => props.data.entries.some(e => e.source === 'es
 
 <style scoped>
 .meal { overflow: hidden; }
-.mh { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); min-height: 60px; }
+/* meals sit flat on the page; rows bleed 8px past the text column so press states have room */
+.meal.card { background: none; box-shadow: none; border-radius: 0; overflow: visible; margin-inline: calc(-1 * var(--s-2)); }
+.mh { display: flex; align-items: center; gap: var(--s-1); padding: 0 0 var(--s-1) var(--s-2); min-height: 48px; }
 .mt { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--s-2); flex-wrap: wrap; }
-.mt h2 { font-size: var(--fs-lg); }
-.mk { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); }
+.mt h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.mk { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-regular); }
 .mk.empty { color: var(--ink-3); font-weight: var(--fw-regular); }
 .add {
   flex: none; width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; border-radius: 50%;
-  background: var(--accent-soft); color: var(--accent-soft-ink); transition: transform var(--dur-fast), background var(--dur-fast);
+  /* 44px target, 32px visual disc */
+  background: radial-gradient(circle, var(--accent-soft) 15.5px, transparent 16px); color: var(--accent-soft-ink); transition: transform var(--dur-fast), background var(--dur-fast);
 }
 .save {
   flex: none; width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; border-radius: 50%;
-  background: transparent; color: var(--ink-2);
+  background: transparent; color: var(--ink-3);
 }
 .save:active { background: var(--surface-2); }
-.add:active { transform: scale(.92); background: var(--accent); color: var(--accent-ink); }
+.add:active { transform: scale(.94); background: radial-gradient(circle, var(--accent) 15.5px, transparent 16px); color: var(--accent-ink); }
 .entries { border-top: 1px solid var(--line); display: grid; }
 .entries > :deep(.entry + .entry) { border-top: 1px solid var(--line); }
 </style>

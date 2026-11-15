@@ -12,13 +12,13 @@ const long = computed(() => t(`srcLong_${props.source}` as any))
 
 <style scoped>
 .badge {
-  display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--r-pill);
-  font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: .02em; white-space: nowrap;
-  background: var(--surface-2); color: var(--ink-2); border: 1px solid transparent;
+  display: inline-flex; align-items: center; height: 18px; padding: 0; border: 0; border-radius: var(--r-pill);
+  font-size: var(--fs-2xs); font-weight: var(--fw-regular); letter-spacing: 0; white-space: nowrap;
+  background: transparent; color: var(--ink-3);
 }
-.label { background: var(--accent-soft); color: var(--accent-soft-ink); }
-.off { background: var(--off-soft); color: var(--off); }
-.generic { background: var(--surface-2); color: var(--ink-2); }
-.estimate { background: transparent; color: var(--estimate); border: 1.5px dashed color-mix(in srgb, var(--estimate) 70%, transparent); }
-.lifesum { background: transparent; color: var(--ink-2); border: 1px solid var(--line-strong); }
+/* only the estimate badge gets a shape; the others are quiet metadata text */
+.label, .generic, .lifesum { background: transparent; color: var(--ink-3); border: 0; }
+.label { color: var(--accent); }
+.off { background: transparent; color: var(--off); }
+.estimate { padding: 0 6px; background: transparent; color: var(--estimate); border: 1px dashed color-mix(in srgb, var(--estimate) 60%, transparent); font-weight: var(--fw-medium); }
 </style>
