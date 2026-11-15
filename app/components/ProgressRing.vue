@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ value: number, max: number, size?: number, stroke?: number, label?: string }>(), { size: 156, stroke: 14 })
+const props = withDefaults(defineProps<{ value: number, max: number, size?: number, stroke?: number, label?: string }>(), { size: 156, stroke: 8 })
 const r = computed(() => (props.size - props.stroke) / 2)
 const C = computed(() => 2 * Math.PI * r.value)
 const frac = computed(() => props.max > 0 ? Math.max(0, props.value / props.max) : 0)
@@ -28,9 +28,9 @@ const extra = computed(() => C.value * (1 - Math.min(1, Math.max(0, frac.value -
 
 <style scoped>
 .ring { position: relative; flex: none; }
-.track { stroke: var(--surface-2); }
+.track { stroke: color-mix(in srgb, var(--accent) 14%, transparent); }
 .arc { stroke: var(--accent); transition: stroke-dashoffset var(--dur-slow) var(--ease), stroke var(--dur); }
-.arc.over { stroke: var(--over); opacity: .45; }
+.arc.over { stroke: var(--over); opacity: .35; }
 .arc.lap { stroke: var(--over); opacity: 1; }
 .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
 </style>

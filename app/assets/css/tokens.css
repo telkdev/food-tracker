@@ -1,107 +1,123 @@
 /*
- * Design tokens. "Oat & herb": warm paper neutrals, one herb-green accent,
- * terracotta for "over", and three muted macro hues that read in both themes.
+ * Design tokens. "Hairline Oat": warm paper neutrals, one herb-green accent,
+ * terracotta for "over", three levelled macro hues. Hairlines, not shadows.
  */
 :root {
   color-scheme: light;
 
   /* type */
   --font: 'Onest Variable', 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --fs-2xs: 0.6875rem; /* 11 */
-  --fs-xs: 0.75rem;    /* 12 */
-  --fs-sm: 0.875rem;   /* 14 */
-  --fs-md: 1rem;       /* 16 */
-  --fs-lg: 1.125rem;   /* 18 */
-  --fs-xl: 1.375rem;   /* 22 */
-  --fs-2xl: 1.75rem;   /* 28 */
-  --fs-hero: 2.75rem;  /* 44 */
-  --lh-tight: 1.1;
-  --lh: 1.4;
-  --fw-regular: 420;
-  --fw-medium: 530;
-  --fw-bold: 680;
-  --fw-black: 780;
+  --fs-2xs: 0.6875rem; /* 11: tab labels, badges, axis */
+  --fs-xs: 0.75rem;    /* 12: meta, captions */
+  --fs-sm: 0.8125rem;  /* 13: secondary text, section titles */
+  --fs-md: 0.9375rem;  /* 15: body */
+  --fs-lg: 1.0625rem;  /* 17: meal titles, macro values */
+  --fs-xl: 1.375rem;   /* 22: sheet titles, stat values */
+  --fs-2xl: 1.75rem;   /* 28: page titles */
+  --fs-hero: 3rem;     /* 48 */
+  --fs-ring: 2.5rem;   /* 40: number inside the ring        new */
+  --fs-input: 1rem;    /* 16: every text input (no iOS zoom) new */
+  --lh-tight: 1.15;
+  --lh: 1.45;
+  --fw-light: 320;     /* big numerals only                  new */
+  --fw-regular: 400;
+  --fw-book: 460;      /* entry/product names, field labels  new */
+  --fw-medium: 520;    /* buttons, small emphasis */
+  --fw-bold: 590;      /* headings h2/h3, active tab */
+  --fw-black: 620;     /* page titles h1 only; never above 620 */
 
   /* spacing (4 px grid) */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --gutter: 20px;      /* page side padding                  new */
 
   /* radius */
-  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 26px; --r-pill: 999px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 20px; --r-xl: 24px; --r-pill: 999px;
 
   /* sizes */
   --tap: 44px;
-  --tabbar-h: 60px;
+  --tabbar-h: 56px;
   --page-max: 560px;
+  --hair: 1px;         /* hairline width                     new */
 
   /* motion */
   --ease: cubic-bezier(.2, .8, .2, 1);
-  --dur-fast: 120ms;
+  --ease-sheet: cubic-bezier(.32, .72, 0, 1); /*             new */
+  --dur-fast: 150ms;
   --dur: 220ms;
-  --dur-slow: 420ms;
+  --dur-slow: 480ms;   /* data fills: ring, bars */
+  --dur-sheet: 320ms;  /* sheet in/out                       new */
 
   /* color: light */
-  --bg: #f4f1e9;
-  --surface: #fffdf8;
-  --surface-2: #ece7db;
-  --surface-3: #e2dccd;
-  --ink: #1f1d18;
-  --ink-2: #5b564b;
-  --ink-3: #6f695c;
-  --line: #e2dccd;
-  --line-strong: #cfc7b5;
-  --accent: #2d6a4c;
-  --accent-hover: #255a40;
+  --bg: #f6f3ec;
+  --surface: #fefcf8;
+  --surface-raised: #fefcf8; /* sheets                      new */
+  --surface-2: #efebe2;
+  --surface-3: #e4dfd3;
+  --control-on: #fefcf8;     /* active segment               new */
+  --ink: #1d1b17;
+  --ink-2: #5c574d;
+  --ink-3: #6c665b;
+  --line: rgba(29, 27, 23, .09);       /* hairline separators, card edge */
+  --line-strong: #cbc3b2;              /* control borders (inputs, chips) */
+  --track: rgba(29, 27, 23, .07);      /* bar tracks            new */
+  --accent: #2e6a4e;
+  --accent-hover: #26593f;
   --accent-ink: #ffffff;
-  --accent-soft: #dcebe0;
-  --accent-soft-ink: #1e4d36;
-  --over: #b84a30;
-  --over-soft: #f6e1d9;
+  --accent-soft: #e1ece4;
+  --accent-soft-ink: #1f4d37;
+  --over: #a84f37;
+  --over-soft: #f5e3db;
   --danger: #b3261e;
-  --protein: #9a4b78;
-  --fat: #b7841c;
-  --carbs: #3f78ad;
-  --estimate: #9a5a12;
-  --estimate-soft: #f5e7d0;
+  --protein: #a35d84;
+  --fat: #a07c2e;
+  --carbs: #4f80ad;
+  --estimate: #94590f;
+  --estimate-soft: #f6ead6;
   --off: #2f6b8f;
-  --off-soft: #dceaf2;
-  --focus: #2d6a4c;
-  --scrim: rgba(28, 24, 18, .42);
-  --shadow-1: 0 1px 2px rgba(40, 33, 20, .06), 0 1px 1px rgba(40, 33, 20, .04);
-  --shadow-2: 0 10px 30px -12px rgba(40, 33, 20, .28), 0 2px 6px rgba(40, 33, 20, .06);
-  --shadow-sheet: 0 -12px 40px -10px rgba(40, 33, 20, .28);
+  --off-soft: #e0ecf3;
+  --focus: #2e6a4e;
+  --scrim: rgba(28, 24, 18, .32);
+  --tabbar-bg: color-mix(in srgb, var(--surface) 82%, transparent); /* new */
+  --shadow-1: 0 0 0 1px var(--line);   /* now a hairline ring, not a drop shadow */
+  --shadow-2: 0 8px 24px -12px rgba(40, 33, 20, .22), 0 1px 2px rgba(40, 33, 20, .05);
+  --shadow-sheet: 0 -8px 32px -12px rgba(40, 33, 20, .20);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #12110f;
-    --surface: #1c1a17;
-    --surface-2: #26231f;
-    --surface-3: #312d28;
-    --ink: #f1ede4;
-    --ink-2: #b1aa9c;
-    --ink-3: #958e80;
-    --line: #2d2924;
-    --line-strong: #3d3832;
-    --accent: #7ccaa0;
-    --accent-hover: #93d6b1;
-    --accent-ink: #0d2419;
-    --accent-soft: #1f3529;
-    --accent-soft-ink: #a6e0c0;
-    --over: #f08d70;
-    --over-soft: #3a231b;
+    --bg: #121110;            /* L≈7% */
+    --surface: #1a1917;       /* L≈10% cards */
+    --surface-raised: #211f1c;/* L≈12% sheets */
+    --surface-2: #292724;
+    --surface-3: #34312d;
+    --control-on: #3a3632;
+    --ink: #eeeae2;
+    --ink-2: #aea79a;
+    --ink-3: #968f83;
+    --line: rgba(255, 248, 235, .10);
+    --line-strong: #46413a;
+    --track: rgba(255, 248, 235, .08);
+    --accent: #86c9a4;
+    --accent-hover: #9ad4b4;
+    --accent-ink: #0d2318;
+    --accent-soft: #1d3428;
+    --accent-soft-ink: #a9dcc0;
+    --over: #ec9479;
+    --over-soft: #3a241c;
     --danger: #ff8a80;
-    --protein: #da8ab8;
-    --fat: #e6bb5c;
-    --carbs: #82b4e6;
-    --estimate: #e7b066;
-    --estimate-soft: #352717;
+    --protein: #d494b8;
+    --fat: #d9b56a;
+    --carbs: #8ab4de;
+    --estimate: #e2ad68;
+    --estimate-soft: #33261a;
     --off: #8cc3e6;
     --off-soft: #1b2c37;
-    --focus: #7ccaa0;
-    --scrim: rgba(0, 0, 0, .6);
-    --shadow-1: 0 1px 0 rgba(255, 255, 255, .03) inset;
-    --shadow-2: 0 12px 32px -12px rgba(0, 0, 0, .7);
-    --shadow-sheet: 0 -12px 40px -10px rgba(0, 0, 0, .7);
+    --focus: #86c9a4;
+    --scrim: rgba(0, 0, 0, .55);
+    --tabbar-bg: color-mix(in srgb, var(--bg) 80%, transparent);
+    --shadow-1: 0 0 0 1px var(--line);
+    --shadow-2: 0 8px 24px -10px rgba(0, 0, 0, .6);
+    --shadow-sheet: 0 -8px 32px -8px rgba(0, 0, 0, .6);
   }
 }

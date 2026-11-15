@@ -25,9 +25,10 @@ const label = computed(() => s.value
 
 <style scoped>
 .split { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
-.bar { flex: 1; display: flex; gap: 1px; height: 4px; min-width: 40px; max-width: 220px; border-radius: 2px; overflow: hidden; background: var(--surface-2); }
+.bar { flex: 1; display: flex; gap: 1px; height: 3px; min-width: 40px; max-width: 200px; border-radius: 2px; overflow: hidden; background: var(--track); }
 .bar i { display: block; flex-basis: 0; height: 100%; min-width: 0; }
 .p { background: var(--protein); } .f { background: var(--fat); } .c { background: var(--carbs); }
 .pct { flex: none; display: inline-flex; gap: 6px; font-size: var(--fs-2xs); color: var(--ink-3); white-space: nowrap; }
-.tp { color: var(--protein); } .tf { color: var(--fat); } .tc { color: var(--carbs); }
+/* letters identify the macros; colour stays on the bar only */
+.tp, .tf, .tc { color: inherit; }
 </style>

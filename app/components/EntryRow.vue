@@ -23,19 +23,19 @@ const approx = computed(() => props.entry.source === 'estimate')
 
 <style scoped>
 .entry {
-  display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 56px;
-  padding: var(--s-2) var(--s-4); border: 0; background: transparent; text-align: left; border-radius: 0;
+  display: flex; align-items: center; gap: var(--s-4); width: 100%; min-height: 56px;
+  padding: var(--s-3) var(--s-2); border: 0; background: transparent; text-align: left; border-radius: 0;
   transition: background var(--dur-fast);
 }
-.entry:hover { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
-.entry:active { background: var(--surface-2); }
-.entry:focus-visible { outline-offset: -2px; border-radius: var(--r-md); }
-.main { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.name { font-weight: var(--fw-medium); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.meta { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-2); font-size: var(--fs-xs); min-width: 0; }
-.grams { white-space: nowrap; flex: none; }
+.entry:hover { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.entry:active { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.entry:focus-visible { outline-offset: -2px; border-radius: var(--r-sm); }
+.main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.name { font-weight: var(--fw-book); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-3); font-size: var(--fs-xs); min-width: 0; }
+.grams { white-space: nowrap; flex: none; color: var(--ink-2); }
 .note { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.kcal { flex: none; font-weight: var(--fw-bold); font-size: var(--fs-md); display: flex; align-items: baseline; gap: 2px; }
-.kcal small { font-size: var(--fs-2xs); font-weight: var(--fw-medium); color: var(--ink-2); margin-left: 3px; }
+.kcal { flex: none; font-weight: var(--fw-medium); font-size: var(--fs-md); display: flex; align-items: baseline; gap: 2px; }
+.kcal small { font-size: var(--fs-2xs); font-weight: var(--fw-regular); color: var(--ink-3); margin-left: 3px; }
 .kcal.approx { color: var(--estimate); }
 </style>

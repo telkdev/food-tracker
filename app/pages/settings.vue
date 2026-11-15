@@ -206,31 +206,33 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 <style scoped>
 .settings { display: grid; gap: var(--s-4); }
 .top { display: flex; align-items: center; gap: var(--s-2); padding-top: var(--s-2); min-height: 56px; margin-left: calc(-1 * var(--s-2)); }
-.top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
-.group { padding: var(--s-4); display: grid; gap: var(--s-3); }
+.top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
+.group { padding: var(--s-4) var(--s-4) var(--s-5); display: grid; gap: var(--s-3); }
 .line { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 52px; }
 .line + .line { border-top: 1px solid var(--line); padding-top: var(--s-2); }
-.ll { display: flex; align-items: center; gap: 6px; font-weight: var(--fw-medium); flex-wrap: wrap; }
+.ll { display: flex; align-items: center; gap: 6px; font-weight: var(--fw-regular); flex-wrap: wrap; }
 .ll small { color: var(--ink-3); font-weight: var(--fw-regular); font-size: var(--fs-xs); width: 100%; padding-left: 14px; }
 .iv { display: flex; align-items: center; gap: 6px; }
-.iv .input { width: 96px; text-align: right; min-height: 44px; }
+.iv .input { width: 88px; text-align: right; min-height: 44px; }
 .iv .input.date { width: auto; text-align: left; }
 .input[aria-invalid='true'] { border-color: var(--danger); }
-.u { width: 2.2em; color: var(--ink-2); font-size: var(--fs-sm); }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.u { width: 2.2em; color: var(--ink-3); font-size: var(--fs-sm); }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .dot.p { background: var(--protein); } .dot.f { background: var(--fat); } .dot.c { background: var(--carbs); }
 .hint { font-size: var(--fs-xs); color: var(--ink-2); }
 .err { color: var(--danger); font-size: var(--fs-sm); }
-.logout { color: var(--danger); background: var(--surface); }
+.logout { color: var(--danger); background: var(--surface); box-shadow: var(--shadow-1); }
 .about { text-align: center; }
-.num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--fs-sm); text-align: right; }
+/* value text only: goal inputs (.input.num) keep --ink and --fs-input */
+.line > .num, p.num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--fs-sm); text-align: right; }
 .tool { min-height: 40px; }
 .pref { display: grid; gap: var(--s-2); }
 .pref + .pref { border-top: 1px solid var(--line); padding-top: var(--s-3); }
 .ph { display: flex; align-items: center; justify-content: space-between; }
 .ph code { font-size: var(--fs-sm); color: var(--ink-2); }
-.ta { min-height: 0; height: auto; padding: var(--s-2) var(--s-3); resize: vertical; font: inherit; font-size: var(--fs-sm); line-height: 1.4; }
+.ta { min-height: 0; height: auto; padding: var(--s-2) var(--s-3); resize: vertical; font: inherit; font-size: var(--fs-input); line-height: 1.4; }
 .ml { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ml b { font-weight: var(--fw-book); }
 .ml small { color: var(--ink-2); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .tool code { font-size: var(--fs-sm); }
 </style>

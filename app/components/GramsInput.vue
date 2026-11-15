@@ -53,11 +53,11 @@ const chipList = computed(() => [...new Set(props.chips)].filter(c => c > 0).sor
 .step:active { background: var(--surface-3); }
 .box {
   display: flex; align-items: baseline; justify-content: center; gap: 6px; height: 64px; padding: 0 var(--s-3);
-  border: 1.5px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface); cursor: text;
+  border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface); cursor: text;
 }
-.box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.val { width: 0; flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; text-align: right; font-size: var(--fs-2xl); font-weight: var(--fw-bold); }
-.unit { flex: 1; color: var(--ink-2); font-size: var(--fs-lg); }
+.box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.val { width: 0; flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; text-align: right; font-size: var(--fs-2xl); font-weight: var(--fw-regular); letter-spacing: -0.02em; }
+.unit { flex: 1; color: var(--ink-3); font-size: var(--fs-lg); }
 .chips { justify-content: center; }
 .chip { flex: 1; }
 </style>

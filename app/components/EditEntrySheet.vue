@@ -86,7 +86,7 @@ const chips = computed(() => {
 <style scoped>
 .head { display: flex; align-items: flex-start; gap: var(--s-2); padding-bottom: var(--s-2); }
 .ttl { flex: 1; min-width: 0; display: grid; gap: 6px; padding-top: 6px; }
-.ttl h2 { font-size: var(--fs-xl); overflow-wrap: anywhere; }
+.ttl h2 { font-size: var(--fs-xl); font-weight: var(--fw-bold); letter-spacing: -0.015em; overflow-wrap: anywhere; }
 .sub { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-sm); }
 .form { display: grid; gap: var(--s-4); }
 .err { color: var(--danger); font-size: var(--fs-sm); }

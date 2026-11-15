@@ -111,29 +111,29 @@ useHead({ title: () => `${t('productsTitle')} · ${t('appName')}` })
 <style scoped>
 .products { display: grid; gap: var(--s-4); }
 .top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding-top: var(--s-2); min-height: 56px; }
-.top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
+.top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
 .add { padding: 0 var(--s-4) 0 var(--s-3); }
-.sbox { display: flex; align-items: center; gap: var(--s-2); height: 48px; padding: 0 var(--s-4); border-radius: var(--r-pill); background: var(--surface-2); border: 1.5px solid transparent; }
-.sbox:focus-within { border-color: var(--accent); background: var(--surface); }
+.sbox { display: flex; align-items: center; gap: var(--s-2); height: 48px; padding: 0 var(--s-4); border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid transparent; }
+.sbox:focus-within { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .sicon { color: var(--ink-2); flex: none; }
-.sbox input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; }
+.sbox input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font-size: var(--fs-input); }
 .sbox input::placeholder { color: var(--ink-3); }
 .pad { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
-.empty { text-align: center; padding: var(--s-8) var(--s-4); }
-.count { font-size: var(--fs-xs); color: var(--ink-2); margin-bottom: calc(-1 * var(--s-2)); }
+.empty { text-align: center; padding: var(--s-8) var(--s-4); color: var(--ink-2); font-size: var(--fs-md); }
+.count { font-size: var(--fs-xs); color: var(--ink-3); margin-bottom: calc(-1 * var(--s-2)); }
 .list { list-style: none; margin: 0; padding: 0; overflow: hidden; }
 .list li + li { border-top: 1px solid var(--line); }
 .row { display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 60px; padding: var(--s-2) var(--s-4); border: 0; background: transparent; text-align: left; }
-.row:active { background: var(--surface-2); }
+.row:active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .row:focus-visible { outline-offset: -2px; }
 .main { flex: 1; min-width: 0; display: grid; gap: 4px; }
-.name { font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+.name { font-weight: var(--fw-book); overflow-wrap: anywhere; }
 .brand { color: var(--ink-2); font-weight: var(--fw-regular); }
-.macros { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-xs); color: var(--ink-2); flex-wrap: wrap; }
+.macros { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-xs); color: var(--ink-3); flex-wrap: wrap; }
 .macros > span:not(.badge) { display: inline-flex; align-items: center; gap: 4px; }
-.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .dot.p { background: var(--protein); } .dot.f { background: var(--fat); } .dot.c { background: var(--carbs); }
-.kcal { flex: none; display: grid; justify-items: end; font-weight: var(--fw-bold); font-size: var(--fs-lg); line-height: 1.1; }
-.kcal small { font-size: var(--fs-2xs); color: var(--ink-2); font-weight: var(--fw-medium); }
+.kcal { flex: none; display: grid; justify-items: end; font-weight: var(--fw-medium); font-size: var(--fs-md); line-height: 1.1; }
+.kcal small { font-size: var(--fs-2xs); color: var(--ink-3); font-weight: var(--fw-regular); }
 .foot { text-align: center; }
 </style>

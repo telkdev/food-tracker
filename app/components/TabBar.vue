@@ -21,17 +21,18 @@ const tabs = computed(() => [
 .tabbar {
   position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
   display: grid; grid-template-columns: repeat(3, 1fr);
-  padding: 4px max(var(--s-2), env(safe-area-inset-left)) env(safe-area-inset-bottom) max(var(--s-2), env(safe-area-inset-right));
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: saturate(1.4) blur(16px); -webkit-backdrop-filter: saturate(1.4) blur(16px);
+  padding: 2px max(var(--s-2), env(safe-area-inset-left)) env(safe-area-inset-bottom) max(var(--s-2), env(safe-area-inset-right));
+  background: var(--tabbar-bg);
+  backdrop-filter: saturate(1.6) blur(20px); -webkit-backdrop-filter: saturate(1.6) blur(20px);
   border-top: 1px solid var(--line);
 }
 .tab {
   display: grid; justify-items: center; align-content: center; gap: 2px; min-height: var(--tabbar-h);
-  color: var(--ink-2); text-decoration: none; font-size: var(--fs-2xs); font-weight: var(--fw-medium);
+  color: var(--ink-3); text-decoration: none; font-size: var(--fs-2xs); font-weight: var(--fw-medium); letter-spacing: .01em;
+  transition: color var(--dur-fast);
 }
-.pill { display: grid; place-items: center; width: 56px; height: 30px; border-radius: var(--r-pill); transition: background var(--dur); }
-.tab.active { color: var(--ink); font-weight: var(--fw-bold); }
-.tab.active .pill { background: var(--accent-soft); color: var(--accent-soft-ink); }
+.pill { display: grid; place-items: center; width: 48px; height: 28px; border-radius: var(--r-pill); background: none; }
+.tab.active { color: var(--accent); font-weight: var(--fw-bold); }
+.tab.active .pill { background: none; color: var(--accent); }
 .tab:focus-visible { outline-offset: -4px; border-radius: var(--r-md); }
 </style>
