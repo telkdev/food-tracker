@@ -234,11 +234,11 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
 .dot.p { background: var(--protein); } .dot.f { background: var(--fat); } .dot.c { background: var(--carbs); }
 .input[aria-invalid='true'] { border-color: var(--danger); }
 .ferr { color: var(--danger); font-size: var(--fs-xs); }
-.namefield > label { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); }
+.namefield > label { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-book); }
 .note { color: var(--ink-2); font-size: var(--fs-xs); }
 .suggest {
   max-height: min(48dvh, 400px); overflow-y: auto; overscroll-behavior: contain;
-  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--r-lg);
   box-shadow: var(--shadow-2); padding: var(--s-1) 0;
 }
 .sh { display: flex; align-items: center; gap: var(--s-2); margin: 0; padding: var(--s-2) var(--s-4) var(--s-1); font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
@@ -248,14 +248,14 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
 }
 .opt:hover, .opt:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .on { flex: 1; min-width: 0; display: grid; }
-.on b { font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.on b { font-weight: var(--fw-book); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .on small, .ok small { color: var(--ink-2); font-size: var(--fs-xs); }
-.ok { flex: none; font-weight: var(--fw-bold); }
+.ok { flex: none; font-weight: var(--fw-medium); }
 .ok.none { font-weight: normal; color: var(--ink-3); font-size: var(--fs-xs); }
 .manual { color: var(--accent); border-top: 1px solid var(--line); margin-top: var(--s-1); }
 .bcrow { display: flex; gap: var(--s-2); }
 .bcrow .input { flex: 1; min-width: 0; }
-.scanbtn { flex: none; width: 48px; border: 1px solid var(--line); border-radius: var(--r-md); }
+.scanbtn { flex: none; width: 48px; border: 1px solid var(--line-strong); border-radius: var(--r-md); }
 .scanbtn[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .scanbox { border-radius: var(--r-lg); overflow: hidden; }
 

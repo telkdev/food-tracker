@@ -107,23 +107,23 @@ function up() {
   margin: 0 auto; width: 100%; max-width: var(--page-max);
   max-height: calc(100dvh - var(--kb, 0px) - max(env(safe-area-inset-top), 12px) - 12px);
   display: flex; flex-direction: column;
-  background: var(--surface); border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: var(--shadow-sheet);
-  transition: transform var(--dur-slow) var(--ease), bottom var(--dur-fast);
+  background: var(--surface-raised); border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: var(--shadow-sheet);
+  transition: transform var(--dur-sheet) var(--ease-sheet), bottom var(--dur-fast);
   outline: none;
 }
 .panel.tall { height: calc(100dvh - var(--kb, 0px) - max(env(safe-area-inset-top), 12px) - 12px); }
-.grab { flex: none; padding: 8px var(--s-4) 0; touch-action: none; }
-.handle { display: block; width: 40px; height: 5px; margin: 0 auto 6px; border-radius: 3px; background: var(--line-strong); }
-.body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--s-2) var(--s-4) var(--s-4); -webkit-overflow-scrolling: touch; }
+.grab { flex: none; padding: var(--s-2) var(--gutter) 0; touch-action: none; }
+.handle { display: block; width: 36px; height: 4px; margin: 0 auto var(--s-2); border-radius: 2px; background: color-mix(in srgb, var(--ink) 22%, transparent); }
+.body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--s-2) var(--gutter) var(--s-5); -webkit-overflow-scrolling: touch; }
 .footer {
-  flex: none; padding: var(--s-3) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--line); background: var(--surface);
+  flex: none; padding: var(--s-3) var(--gutter) calc(var(--s-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line); background: var(--surface-raised);
 }
-.body:last-child { padding-bottom: calc(var(--s-4) + env(safe-area-inset-bottom)); }
+.body:last-child { padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom)); }
 .kbopen .footer, .kbopen .body:last-child { padding-bottom: var(--s-3); }
 
-.sheet-enter-active, .sheet-leave-active { transition: opacity var(--dur); }
-.sheet-enter-active .panel, .sheet-leave-active .panel { transition: transform var(--dur-slow) var(--ease); }
+.sheet-enter-active, .sheet-leave-active { transition: opacity var(--dur-sheet) var(--ease); }
+.sheet-enter-active .panel, .sheet-leave-active .panel { transition: transform var(--dur-sheet) var(--ease-sheet); }
 .sheet-enter-from, .sheet-leave-to { opacity: 0; }
 .sheet-enter-from .panel, .sheet-leave-to .panel { transform: translateY(100%); }
 </style>

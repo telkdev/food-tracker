@@ -22,12 +22,12 @@ const approx = computed(() => props.source === 'estimate')
 <style scoped>
 .pv { display: grid; justify-items: center; gap: 4px; padding: var(--s-3); border-radius: var(--r-md); background: var(--surface-2); }
 .pv.approx { background: var(--estimate-soft); }
-.kcal { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
-.kcal small { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-2); }
+.kcal { font-size: var(--fs-2xl); font-weight: var(--fw-regular); letter-spacing: -0.02em; }
+.kcal small { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--ink-3); }
 .approx .kcal { color: var(--estimate); }
 .m { display: flex; gap: var(--s-4); font-size: var(--fs-sm); color: var(--ink-2); }
 .m span { display: inline-flex; align-items: center; gap: 5px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .dot.p { background: var(--protein); } .dot.f { background: var(--fat); } .dot.c { background: var(--carbs); }
 .hint { font-size: var(--fs-xs); color: var(--estimate); }
 </style>

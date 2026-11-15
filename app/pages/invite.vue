@@ -65,9 +65,9 @@ useHead({ title: () => `${t('inviteTitle')} · ${t('appName')}` })
 }
 .wrap { width: 100%; max-width: 380px; display: grid; gap: var(--s-6); }
 .brand { display: grid; justify-items: center; gap: var(--s-2); text-align: center; }
-.logo { border-radius: 20px; box-shadow: var(--shadow-2); margin-bottom: var(--s-2); }
-.brand h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
-.form { padding: var(--s-5); display: grid; gap: var(--s-3); }
+.logo { border-radius: 20px; box-shadow: none; margin-bottom: var(--s-2); }
+.brand h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
+.form { padding: var(--s-6) var(--s-5); display: grid; gap: var(--s-3); }
 .pw { position: relative; display: block; }
 .pw .input { padding-right: 52px; }
 .eye { position: absolute; right: 2px; top: 2px; }

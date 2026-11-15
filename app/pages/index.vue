@@ -104,6 +104,12 @@ const goal = computed(() => day.value?.goal.kcal ?? settings.value?.kcalGoal ?? 
 const remaining = computed(() => day.value?.remaining_kcal ?? goal.value)
 const over = computed(() => remaining.value < 0)
 const anyEstimate = computed(() => !!day.value && MEALS.some(m => day.value!.meals[m].entries.some(e => e.source === 'estimate')))
+// shrink the ring number as it gets longer so 4–5 digits (and "≈") fit inside the 156px ring
+const bigSize = computed(() => {
+  const digits = String(Math.round(Math.abs(remaining.value))).length
+  const units = digits * 0.6 + (digits > 3 ? 0.3 : 0) + (anyEstimate.value ? 0.4 : 0)
+  return `${Math.max(24, Math.min(40, Math.floor(100 / units)))}px`
+})
 // share of the day's kcal that comes from guesses: how much to trust the total
 const estimatePct = computed(() => {
   const est = day.value?.estimate_kcal ?? 0
@@ -249,8 +255,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
       <div class="content" :class="{ stale: loading }">
         <section class="hero card" :aria-label="t('kcalLeft')">
           <div class="hero-top">
-            <ProgressRing :value="eaten" :max="goal" :size="152" :stroke="12" :label="`${n(eaten)} / ${n(goal)} ${t('kcal')}`">
-              <span class="big num" :class="{ over }"><span v-if="anyEstimate" class="approx">≈</span>{{ n(Math.abs(remaining)) }}</span>
+            <ProgressRing :value="eaten" :max="goal" :size="156" :stroke="7" :label="`${n(eaten)} / ${n(goal)} ${t('kcal')}`">
+              <span class="big num" :class="{ over }" :style="{ fontSize: bigSize }"><span v-if="anyEstimate" class="approx">≈</span>{{ n(Math.abs(remaining)) }}</span>
               <span class="biglbl">{{ over ? t('kcalOver') : t('kcalLeft') }}</span>
             </ProgressRing>
             <dl class="stats">
@@ -284,21 +290,21 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 </template>
 
 <style scoped>
-.today { display: grid; gap: var(--s-4); min-height: 70dvh; }
-.top { display: flex; align-items: flex-end; gap: var(--s-2); padding-top: var(--s-2); }
+.today { display: grid; gap: var(--s-5); min-height: 70dvh; }
+.top { display: flex; align-items: flex-end; gap: var(--s-2); padding-top: var(--s-3); }
 .when { flex: 1; min-width: 0; }
-.hello { font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--ink); margin-bottom: 2px; }
-.eyebrow { font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); }
+.hello { font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--ink-2); margin-bottom: 0; }
+.eyebrow { font-size: var(--fs-sm); color: var(--ink-3); font-weight: var(--fw-regular); }
 .eyebrow::first-letter, .trow h1::first-letter { text-transform: uppercase; }
 .trow { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
-.trow h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.02em; }
+.trow h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; margin-top: 2px; }
 .todaypill {
   min-height: 32px; padding: 0 var(--s-3); border: 0; border-radius: var(--r-pill);
-  background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-bold); position: relative;
+  background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); position: relative;
 }
 .todaypill::after { content: ''; position: absolute; inset: -6px -2px; }
-.streak { margin-top: 2px; font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-medium); justify-self: start; width: fit-content; }
-.streak .num { font-weight: var(--fw-bold); color: var(--ink); }
+.streak { margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-2); font-weight: var(--fw-regular); justify-self: start; width: fit-content; }
+.streak .num { font-weight: var(--fw-medium); color: var(--ink); }
 .streak.open .num { color: var(--ink-2); }
 /* quiet mark on 10, 20, 30, 50, 100 … days: a soft pill, nothing more */
 .streak.milestone { padding: 2px var(--s-2); margin-left: calc(-1 * var(--s-2)); border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); }
@@ -306,21 +312,21 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .nav { display: flex; gap: 0; margin-right: calc(-1 * var(--s-2)); }
 .nav .icon-btn:disabled { opacity: .3; }
 
-.content { display: grid; gap: var(--s-3); transition: opacity var(--dur); }
+.content { display: grid; gap: var(--s-6); transition: opacity var(--dur); }
 .content.stale { opacity: .55; }
 
-.hero { padding: var(--s-5) var(--s-4) var(--s-4); display: grid; gap: var(--s-5); }
+.hero { padding: var(--s-5); display: grid; gap: var(--s-6); }
 .hero-top { display: flex; align-items: center; gap: var(--s-5); }
-.big .approx { font-size: .6em; font-weight: var(--fw-bold); color: var(--ink-2); margin-right: 1px; vertical-align: .18em; }
-.big { font-size: 2rem; font-weight: var(--fw-black); letter-spacing: -0.03em; line-height: 1; }
+.big .approx { font-size: .5em; font-weight: var(--fw-regular); color: var(--ink-3); margin-right: 2px; vertical-align: .32em; }
+.big { font-size: var(--fs-ring); font-weight: var(--fw-light); letter-spacing: -0.035em; line-height: 1; }
 .big.over { color: var(--over); }
-.biglbl { font-size: var(--fs-xs); color: var(--ink-2); margin-top: 4px; font-weight: var(--fw-medium); }
-.stats { flex: 1; min-width: 0; margin: 0; display: grid; gap: var(--s-3); }
-.stats div { display: grid; gap: 1px; }
-.stats dt { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
-.stats dd { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); }
-.estpct { margin: 0; font-size: var(--fs-xs); color: var(--estimate); font-weight: var(--fw-medium); }
-.macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+.biglbl { max-width: 112px; margin: 6px auto 0; font-size: var(--fs-xs); line-height: 1.25; color: var(--ink-2); font-weight: var(--fw-regular); text-wrap: balance; }
+.stats { flex: 1; min-width: 0; margin: 0; display: grid; gap: var(--s-4); }
+.stats div { display: grid; gap: 2px; }
+.stats dt { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-regular); }
+.stats dd { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-regular); letter-spacing: -0.01em; }
+.estpct { margin: 0; font-size: var(--fs-xs); color: var(--estimate); font-weight: var(--fw-regular); }
+.macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); }
 
 .errcard { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
 .loaderr { color: var(--danger); font-size: var(--fs-sm); }
@@ -328,15 +334,15 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 
 .fab {
   position: fixed; z-index: 30;
-  right: max(var(--s-4), calc((100vw - var(--page-max)) / 2 + var(--s-4)));
+  right: max(var(--gutter), calc((100vw - var(--page-max)) / 2 + var(--gutter)));
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s-4));
-  display: inline-flex; align-items: center; gap: var(--s-2); height: 56px; padding: 0 var(--s-5) 0 var(--s-4);
+  display: inline-flex; align-items: center; gap: var(--s-2); height: 52px; padding: 0 var(--s-5) 0 var(--s-4);
   border: 0; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
-  font-weight: var(--fw-bold); font-size: var(--fs-md); box-shadow: var(--shadow-2);
+  font-weight: var(--fw-medium); font-size: var(--fs-md); box-shadow: var(--shadow-2);
   transition: transform var(--dur-fast);
 }
-.fab:active { transform: scale(.96); }
-/* FAB is 56px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 56px more leaves a 16px gap */
-.fab-room { height: 56px; }
+.fab:active { transform: scale(.97); }
+/* FAB is 52px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 52px more leaves a 16px gap */
+.fab-room { height: 52px; }
 @media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
 </style>

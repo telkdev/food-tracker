@@ -475,10 +475,10 @@ const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100
 <style scoped>
 .search { display: grid; gap: var(--s-3); padding-bottom: var(--s-2); }
 .sbox {
-  display: flex; align-items: center; gap: var(--s-2); height: 52px; padding: 0 var(--s-2) 0 var(--s-4);
-  border-radius: var(--r-pill); background: var(--surface-2); border: 1.5px solid transparent;
+  display: flex; align-items: center; gap: var(--s-2); height: 48px; padding: 0 var(--s-2) 0 var(--s-4);
+  border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid transparent;
 }
-.sbox:focus-within { border-color: var(--accent); background: var(--surface); }
+.sbox:focus-within { border-color: var(--accent); background: var(--surface-raised); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .sicon { color: var(--ink-2); flex: none; }
 .sbox input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font-size: var(--fs-lg); }
 .sbox input::-webkit-search-cancel-button { display: none; }
@@ -487,27 +487,27 @@ const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
 .act {
   display: flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--tap); padding: 0 var(--s-3);
-  border: 1.5px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+  border: 0; border-radius: var(--r-md); background: var(--surface-2); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium);
 }
-.act:active { background: var(--surface-2); }
-.ctx { font-size: var(--fs-xs); color: var(--ink-2); text-align: center; }
+.act:active { background: var(--surface-3); }
+.ctx { font-size: var(--fs-xs); color: var(--ink-3); text-align: center; }
 
 .stephead { display: grid; grid-template-columns: var(--tap) 1fr var(--tap); align-items: center; gap: var(--s-2); padding-bottom: var(--s-2); }
 .stephead h2 { font-size: var(--fs-lg); text-align: center; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 
-.results { display: grid; gap: var(--s-5); }
-.results section { display: grid; gap: var(--s-2); }
+.results { display: grid; gap: var(--s-6); }
+.results section { display: grid; gap: var(--s-1); }
 .list { list-style: none; margin: 0; padding: 0; display: grid; }
 .hit { display: flex; align-items: center; gap: var(--s-2); border-bottom: 1px solid var(--line); }
 .hit:last-child { border-bottom: 0; }
 .hit-main { flex: 1; min-width: 0; display: grid; gap: 3px; min-height: 56px; padding: var(--s-2) var(--s-1); border: 0; background: transparent; text-align: left; border-radius: var(--r-sm); }
 .hit-main:active { background: var(--surface-2); }
-.hn { font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+.hn { font-weight: var(--fw-book); overflow-wrap: anywhere; }
 .brand { color: var(--ink-2); font-weight: var(--fw-regular); }
-.hm { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--ink-2); }
+.hm { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--ink-3); }
 .quick {
   flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; min-width: 76px; padding: 0 var(--s-3);
-  border: 0; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-bold);
+  border: 0; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); font-weight: var(--fw-medium);
   position: relative;
 }
 .quick::after { content: ''; position: absolute; inset: -4px 0; } /* 48px hit area */
@@ -516,7 +516,7 @@ const kcalPreview = computed(() => picked.value ? Math.round(picked.value.per100
 .online { justify-self: start; background: var(--off-soft); color: var(--off); }
 .state { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-sm); color: var(--ink-2); }
 .state.err { color: var(--danger); }
-.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--off); animation: spin .8s linear infinite; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-strong); border-top-color: var(--off); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty { display: grid; justify-items: center; gap: var(--s-3); padding: var(--s-6) 0; color: var(--ink-2); text-align: center; }
 

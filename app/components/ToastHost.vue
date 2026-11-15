@@ -29,13 +29,13 @@ async function act(id: number, run: () => unknown) {
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: var(--s-3);
   width: min(100%, 440px); min-height: 52px; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
-  border-radius: var(--r-lg); background: var(--ink); color: var(--bg); box-shadow: var(--shadow-2);
-  font-size: var(--fs-sm); font-weight: var(--fw-medium);
+  border-radius: var(--r-md); background: var(--ink); color: var(--bg); box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm); font-weight: var(--fw-regular);
 }
 .msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act {
   min-height: var(--tap); padding: 0 var(--s-4); border: 0; border-radius: var(--r-pill);
-  background: transparent; color: var(--accent-soft); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .04em; font-size: var(--fs-xs);
+  background: transparent; color: var(--accent-soft); font-weight: var(--fw-medium); text-transform: none; letter-spacing: 0; font-size: var(--fs-sm);
 }
 @media (prefers-color-scheme: dark) { .act { color: var(--accent-ink); } .toast { background: var(--accent); color: var(--accent-ink); } }
 .toast-enter-active, .toast-leave-active { transition: transform var(--dur) var(--ease), opacity var(--dur); }

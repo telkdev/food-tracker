@@ -19,13 +19,14 @@ const over = computed(() => !!props.goal && props.value > props.goal * 1.05)
 </template>
 
 <style scoped>
-.macro { display: grid; gap: 4px; min-width: 0; }
-.label { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
+.macro { display: grid; gap: 6px; min-width: 0; }
+.label { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-regular); }
 .val { font-size: var(--fs-sm); white-space: nowrap; }
-.val b { font-size: var(--fs-lg); font-weight: var(--fw-bold); }
-.of, .unit { color: var(--ink-2); }
-.bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
-.bar span { display: block; height: 100%; border-radius: 3px; transition: width var(--dur-slow) var(--ease); }
-.bar.nogoal span { opacity: .55; }
+.val b { font-size: var(--fs-lg); font-weight: var(--fw-medium); letter-spacing: -0.01em; }
+.of, .unit { color: var(--ink-3); }
+.bar { height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: 2px; transform-origin: left center; transition: width var(--dur-slow) var(--ease); animation: bar-in var(--dur-slow) var(--ease) both; }
+@keyframes bar-in { from { transform: scaleX(0); } }
+.bar.nogoal span { opacity: .5; }
 .hint { font-size: var(--fs-2xs); color: var(--ink-3); }
 </style>
