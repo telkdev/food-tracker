@@ -40,7 +40,18 @@ export interface Day {
   remaining_kcal: number
   estimate_kcal?: number
   streak?: Streak
+  water: Water
   meals: Record<Meal, { totals: Totals, entries: Entry[] }>
+}
+
+/** Water drunk on one day (sum of taps) and the goal in force. */
+export interface Water {
+  date: string
+  ml: number
+  goal_ml: number
+  /** set by hand in Settings; false = suggested from weight and activity */
+  goal_manual: boolean
+  logs: { id: string, ml: number, logged_at: string }[]
 }
 
 /** Consecutive days with at least one entry, as of today. */
@@ -80,6 +91,9 @@ export interface Settings {
   today: string
   /** greeting name; null when none is set */
   name?: string | null
+  /** manual water goal; null = the suggestion below */
+  waterGoalMl?: number | null
+  water_auto?: { ml: number, basis: 'weight' | 'sex' | 'default', training_day_extra_ml: number }
 }
 
 /** Something that can be logged: a saved product, an OFF hit, a recent entry or a manual item. */

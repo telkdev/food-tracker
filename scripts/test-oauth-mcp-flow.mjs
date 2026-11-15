@@ -71,10 +71,20 @@ ok(r.status === 400, 'code reuse rejected')
 const mcp = new Client({ name: 'flow-test', version: '1' })
 await mcp.connect(new StreamableHTTPClientTransport(new URL(`${B}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${t1.access_token}` } } }))
 const tools = (await mcp.listTools()).tools.map(t => t.name)
-ok(tools.length === 15 && tools.includes('suggest_day_plan'), `tools: ${tools.join(', ')}`)
+ok(tools.length === 17 && tools.includes('suggest_day_plan') && tools.includes('log_water'), `tools: ${tools.join(', ')}`)
 const call = async (name, args) => { const res = await mcp.callTool({ name, arguments: args }); return { err: res.isError, data: res.isError ? res.content[0].text : JSON.parse(res.content[0].text) } }
 let res = await call('get_day', { date: '2026-11-07' })
 ok(!res.err && res.data.totals.kcal > 1000, `get_day: ${res.data.totals.kcal} kcal, ${res.data.left_kcal} left`)
+// water: a date with no real data, removed again
+res = await call('log_water', { ml: 330, date: '2020-01-01' })
+ok(!res.err && res.data.water_ml >= 330 && res.data.water_goal_ml >= 1500, `log_water: ${res.data.water_ml} of ${res.data.water_goal_ml} ml`)
+const waterId = res.data.id
+res = await call('log_water', { ml: 0 })
+ok(res.err, 'log_water rejects 0 ml')
+res = await call('get_day', { date: '2020-01-01' })
+ok(!res.err && res.data.water_logs?.some(w => w[0] === waterId), 'get_day lists water logs')
+res = await call('delete_water', { id: waterId })
+ok(!res.err && res.data.deleted_ml === 330, 'delete_water')
 res = await call('search_products', { query: 'skyr' })
 ok(!res.err && res.data.results[0].from === 'mine' && res.data.results[0].id, `search_products: ${res.data.results.map(r => `${r.from}:${r.name}`).join(' | ')}`)
 const skyrId = res.data.results[0].id

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Preference, SavedMeal, Settings } from '~/utils/types'
 import { errMsg } from '~/utils/format'
-import { intlTag } from '~/utils/i18n'
+import { intlTag, type MsgKey } from '~/utils/i18n'
 import type { LangPref } from '~/composables/useI18n'
 
 const { t, locale } = useT()
@@ -12,23 +12,25 @@ const requestFetch = useRequestFetch()
 const langPref = useLangPref()
 
 const { data } = await useAsyncData('settings-page', () => requestFetch<Settings>('/api/settings'))
-const f = reactive({ kcal: '', p: '', f: '', c: '' })
+const f = reactive({ kcal: '', p: '', f: '', c: '', water: '' })
 watch(data, (s) => {
   if (!s) return
   settings.value = s
-  Object.assign(f, { kcal: String(s.kcalGoal), p: s.pGoal != null ? String(s.pGoal) : '', f: s.fGoal != null ? String(s.fGoal) : '', c: s.cGoal != null ? String(s.cGoal) : '' })
+  Object.assign(f, { kcal: String(s.kcalGoal), p: s.pGoal != null ? String(s.pGoal) : '', f: s.fGoal != null ? String(s.fGoal) : '', c: s.cGoal != null ? String(s.cGoal) : '', water: s.waterGoalMl != null ? String(s.waterGoalMl) : '' })
 }, { immediate: true })
 
 const busy = ref(false)
 const error = ref('')
 const kcalBad = computed(() => { const v = Number(f.kcal); return !Number.isInteger(v) || v < 800 || v > 8000 })
+const waterBad = computed(() => { const v = opt(f.water); return v != null && (!Number.isFinite(v) || v < 500 || v > 6000) })
+const waterAuto = computed(() => data.value?.water_auto ?? settings.value?.water_auto ?? null)
 const opt = (s: string) => s.trim() === '' ? null : Math.round(Number(s.replace(',', '.')))
 
 async function save() {
-  if (kcalBad.value || busy.value) return
+  if (kcalBad.value || waterBad.value || busy.value) return
   busy.value = true; error.value = ''
   try {
-    await $fetch('/api/settings', { method: 'PATCH', body: { kcal_goal: Number(f.kcal), p_goal: opt(f.p), f_goal: opt(f.f), c_goal: opt(f.c) } })
+    await $fetch('/api/settings', { method: 'PATCH', body: { kcal_goal: Number(f.kcal), p_goal: opt(f.p), f_goal: opt(f.f), c_goal: opt(f.c), water_goal_ml: opt(f.water) } })
     settings.value = await $fetch<Settings>('/api/settings')
     useState<Record<string, unknown>>('day-cache').value = {}
     toast.show(t('goalsSaved'))
@@ -180,8 +182,13 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
         <span class="iv"><input v-model="f.c" class="input num" inputmode="numeric" placeholder="—"><span class="u">{{ t('g') }}</span></span>
       </label>
       <p v-if="macroKcal" class="hint num">{{ t('protein') }} + {{ t('fat') }} + {{ t('carbs') }} ≈ {{ macroKcal }} {{ t('kcal') }}</p>
+      <label class="line">
+        <span class="ll"><i class="dot w" />{{ t('waterGoal') }} <small>{{ t('waterGoalEmpty') }}</small></span>
+        <span class="iv"><input v-model="f.water" class="input num" inputmode="numeric" :placeholder="waterAuto ? String(waterAuto.ml) : '—'" :aria-invalid="waterBad"><span class="u">{{ t('ml') }}</span></span>
+      </label>
+      <p v-if="waterAuto" class="hint">{{ t(`waterBasis_${waterAuto.basis}` as MsgKey, { ml: waterAuto.ml }) }} {{ t('waterTrainingDay', { ml: waterAuto.training_day_extra_ml }) }}</p>
       <p v-if="error" class="err">{{ error }}</p>
-      <button type="submit" class="btn btn-primary btn-block" :disabled="busy || kcalBad">{{ t('save') }}</button>
+      <button type="submit" class="btn btn-primary btn-block" :disabled="busy || kcalBad || waterBad">{{ t('save') }}</button>
     </form>
 
     <form class="card group" @submit.prevent="saveCarry">
@@ -291,6 +298,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 .input[aria-invalid='true'] { border-color: var(--danger); }
 .u { width: 2.2em; color: var(--ink-3); font-size: var(--fs-sm); }
 .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.dot.w { background: var(--water); }
 .dot.p { background: var(--protein); } .dot.f { background: var(--fat); } .dot.c { background: var(--carbs); }
 .hint { font-size: var(--fs-xs); color: var(--ink-2); }
 .err { color: var(--danger); font-size: var(--fs-sm); }
