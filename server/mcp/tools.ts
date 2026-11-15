@@ -52,9 +52,10 @@ const date = z.string().describe('Local date YYYY-MM-DD (Europe/Warsaw). Omit fo
 export function buildMcpServer(uid: string) {
   const tool = makeTool(uid)
   const server = new McpServer(
-    { name: 'food-tracker', title: 'Food Tracker', version: '0.4.0' },
+    { name: 'food-tracker', title: 'Food Tracker', version: '0.5.0' },
     { instructions: [
-      'Personal food diary of the signed-in user. All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
+      'Personal food diary of the signed-in user. This server IS the diary: an entry exists only if log_food or log_meal returned it. All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
+      'When the user says they ate or drank something, or asks to log, record, add or save food (e.g. "запиши", "записать", "внеси", "запиши в приложение", "я съел", "I had", "log this"), log it here in this same turn with log_food or log_meal. Never put it into a draft, note, artifact, document, memory, canvas or a table in the chat instead, and never only say you will log it later. If grams are missing for some items, log the items you can and ask about the rest in the same reply, then log them as soon as he answers. After logging, confirm briefly with what was saved and the day totals returned by the call.',
       'At the start of every conversation about food, call get_context once: it returns his standing rules (follow them), his usual meals and his most frequent products with the grams he usually eats.',
       'Prefer, in order: a usual meal (log_meal), a frequent or saved product (product_id), search_products, and only then your own estimate.',
       'Ask for grams instead of guessing; a guess must be logged with source "estimate".',
@@ -67,7 +68,8 @@ export function buildMcpServer(uid: string) {
   server.registerTool('log_food', {
     title: 'Log food',
     description: [
-      'Create diary entries for one meal. The server computes kcal/protein/fat/carbs from grams × per-100 g values; never send totals.',
+      'Save food to the user\'s diary in the app. Call this whenever he says he ate or drank something or asks to log/record it (\"запиши\", \"я съел\", \"I had\"); this is the only way to record food, never a note, draft or artifact.',
+      'Creates diary entries for one meal. The server computes kcal/protein/fat/carbs from grams × per-100 g values; never send totals.',
       'Prefer an existing product: call search_products first and pass its product_id (its per-100 g values are used).',
       'Without product_id, per100 and source are required. Values must be per 100 g, never per serving or per package.',
       'Always state whether the weight is raw or cooked in the name, e.g. "buckwheat, cooked"; follow the weighing rule from get_context.',
@@ -109,6 +111,7 @@ export function buildMcpServer(uid: string) {
       frequent: c.frequent.map(f => [f.id, f.name, f.last_g, Math.round(f.kcal100), f.times]),
       frequent_format: '[product_id, name, last grams, kcal per 100 g, times logged]',
       today: dayTotals(c.day),
+      logging: 'When he says he ate something or asks to record it, call log_food / log_meal now. Do not write food into notes, drafts or artifacts: only entries returned by those calls are in his diary.',
     }
   }))
 
@@ -126,7 +129,7 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('log_meal', {
     title: 'Log a usual meal',
-    description: 'Log all items of a usual meal (id from get_context) in one call. scale multiplies every item\'s grams (e.g. 1.5). To change one item, log the meal and then fix that entry with update_entry, or log extra items with log_food.',
+    description: 'Save a usual meal to the user\'s diary in the app, all items in one call (id from get_context). Use it when he says he ate one of his usual meals or asks to log it; never write it into a note or draft instead. scale multiplies every item\'s grams (e.g. 1.5). To change one item, log the meal and then fix that entry with update_entry, or log extra items with log_food.',
     inputSchema: { meal_id: z.string(), date: date.optional(), meal: meal.optional(), scale: z.number().optional() },
   }, tool('log_meal', async (args) => {
     const r = await logSavedMeal(uid, parseOr400(logMealSchema, args))
