@@ -66,18 +66,16 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString(intlTag[locale.va
   <section class="water card" :aria-label="t('water')">
     <div class="wt">
       <Icon name="drop" :size="18" class="ic" />
-      <h2>{{ t('water') }}</h2>
-      <p class="amt num" :class="{ done }">
-        <b>{{ liters(water.ml) }}</b><span class="of"> / {{ liters(water.goal_ml) }} {{ t('liter') }}</span>
+      <p class="amt num" :class="{ done }" :title="done ? t('waterDone') : t('waterLeft', { v: liters(left) })">
+        <span class="sr-only">{{ t('water') }}: </span><b>{{ liters(water.ml) }}</b><span class="of"> / {{ liters(water.goal_ml) }} {{ t('liter') }}</span>
       </p>
+      <div class="acts">
+        <button v-for="q in QUICK" :key="q" type="button" class="chip add num" :disabled="busy" @click="add(q)">+{{ n(q) }}</button>
+        <button type="button" class="chip more" :aria-label="t('waterMore')" @click="open = true">···</button>
+      </div>
     </div>
     <div class="glasses" role="meter" :aria-valuemin="0" :aria-valuemax="water.goal_ml" :aria-valuenow="water.ml" :aria-label="t('water')">
-      <span v-for="(f, i) in fills" :key="i" class="glass"><i :style="{ transform: `scaleY(${f})` }" /></span>
-    </div>
-    <div class="acts">
-      <button v-for="q in QUICK" :key="q" type="button" class="chip add num" :disabled="busy" @click="add(q)">+{{ n(q) }} {{ t('ml') }}</button>
-      <button type="button" class="chip more" :aria-label="t('waterMore')" @click="open = true">···</button>
-      <span class="left">{{ done ? t('waterDone') : t('waterLeft', { v: liters(left) }) }}</span>
+      <span v-for="(f, i) in fills" :key="i" class="glass"><i :style="{ transform: `scaleX(${f})` }" /></span>
     </div>
 
     <BottomSheet :open="open" :label="t('water')" @close="open = false">
@@ -113,21 +111,20 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString(intlTag[locale.va
 </template>
 
 <style scoped>
-.water { padding: var(--s-4); display: grid; gap: var(--s-3); }
+.water { padding: var(--s-2) var(--s-3) var(--s-3) var(--s-4); display: grid; gap: var(--s-2); }
 .wt { display: flex; align-items: center; gap: var(--s-2); }
 .ic { color: var(--water); }
-.wt h2 { flex: 1; font-size: var(--fs-lg); font-weight: var(--fw-bold); }
-.amt { margin: 0; font-size: var(--fs-sm); white-space: nowrap; }
+.amt { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-sm); white-space: nowrap; }
 .amt b { font-size: var(--fs-lg); font-weight: var(--fw-medium); letter-spacing: -0.01em; }
 .amt.done b { color: var(--water); }
 .of { color: var(--ink-3); }
-.glasses { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; height: 18px; }
-.glass { position: relative; border-radius: 3px 3px 5px 5px; background: var(--track); overflow: hidden; }
+.glasses { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; height: 4px; }
+.glass { position: relative; border-radius: 2px; background: var(--track); overflow: hidden; }
 .glass i {
-  position: absolute; inset: 0; background: var(--water); transform-origin: bottom;
+  position: absolute; inset: 0; background: var(--water); transform-origin: left;
   transition: transform var(--dur-slow) var(--ease);
 }
-.acts { display: flex; align-items: center; gap: var(--s-2); }
+.acts { display: flex; align-items: center; gap: 6px; }
 .acts .chip { min-height: 36px; min-width: 0; padding: 0 var(--s-3); font-size: var(--fs-sm); }
 .add { color: var(--water-ink); border-color: color-mix(in srgb, var(--water) 45%, transparent); }
 .add:active:not(:disabled) { background: var(--water-soft); }

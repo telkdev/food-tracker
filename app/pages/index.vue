@@ -133,6 +133,10 @@ const addMeal = ref<Meal>('breakfast')
 const initialPick = ref<Pickable | null>(null)
 const pendingPick = useState<Pickable | null>('pending-pick', () => null)
 
+function jumpTo(meal: Meal) {
+  document.getElementById(`sec-${meal}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 function openAdd(meal?: Meal) {
   addMeal.value = meal ?? (rel.value === 0 ? mealNow(settings.value?.timezone) : 'dinner')
   initialPick.value = null
@@ -277,13 +281,16 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
           </div>
         </section>
 
+        <!-- order = priority: what's left → meals → suggestion → secondary trackers → details -->
+        <MealStrip :meals="day.meals" :goal="goal" @add="openAdd" @jump="jumpTo" />
+
+        <DayPlanCard v-if="rel === 0" :date="current" :stamp="`${day.totals.kcal}`" @added="onAdded" />
+
         <WaterCard v-if="day.water" :water="day.water" :date="day.date" @change="onWater" />
 
         <NutrientExtras v-if="day.extras && day.extras_goal" :extras="day.extras" :goal="day.extras_goal" :kcal="day.totals.kcal" />
 
-        <DayPlanCard v-if="rel === 0" :date="current" :stamp="`${day.totals.kcal}`" @added="onAdded" />
-
-        <MealSection v-for="m in MEALS" :key="m" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" @save="saveUsual" />
+        <MealSection v-for="m in MEALS" :id="`sec-${m}`" :key="m" class="msec" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" @save="saveUsual" />
 
         <p v-if="anyOff" class="attribution foot">{{ t('offAttribution') }}</p>
       </div>
@@ -325,7 +332,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .nav { display: flex; gap: 0; margin-right: calc(-1 * var(--s-2)); }
 .nav .icon-btn:disabled { opacity: .3; }
 
-.content { display: grid; gap: var(--s-6); transition: opacity var(--dur); }
+.content { display: grid; gap: var(--s-3); transition: opacity var(--dur); }
 .content.stale { opacity: .55; }
 
 .hero { padding: var(--s-5); display: grid; gap: var(--s-6); }
@@ -358,4 +365,6 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 /* FAB is 52px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 52px more leaves a 16px gap */
 .fab-room { height: 52px; }
 @media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
+.msec { scroll-margin-top: var(--s-4); }
+.content > .msec { margin-top: var(--s-3); }
 </style>

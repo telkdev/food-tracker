@@ -129,12 +129,14 @@ const after = computed(() => {
 
 <style scoped>
 .plan { overflow: hidden; }
-.ph { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4); min-height: 60px; }
+.ph { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); min-height: 56px; }
 .pt { flex: 1; min-width: 0; }
-.pt h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.pt h2 { font-size: var(--fs-md); font-weight: var(--fw-bold); }
 .hint { font-size: var(--fs-xs); color: var(--ink-2); margin-top: 2px; }
+.ph .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pad { padding: 0 var(--s-4) var(--s-4); }
-.sug { color: var(--accent-soft-ink); background: var(--accent-soft); font-weight: var(--fw-medium); }
+.sug { flex: none; color: var(--accent-ink); background: var(--accent); font-weight: var(--fw-medium); padding: 0 var(--s-4); }
+.sug:hover:not(:disabled) { background: var(--accent-hover); }
 .items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .item { display: flex; align-items: center; gap: var(--s-1); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); }
 .item + .item { border-top: 1px solid var(--line); }
