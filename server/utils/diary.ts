@@ -112,9 +112,10 @@ export async function setStreakCarry(uid: string, c: StreakCarryInput) {
 export async function getDay(uid: string, date?: string) {
   const s = await getSettings(uid)
   const day = date ?? localDate(s.timezone)
-  const [rows, streak] = await Promise.all([
+  const [rows, streak, water] = await Promise.all([
     useDb().select().from(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.date, day))).orderBy(asc(schema.entries.loggedAt)),
     getStreak(uid, s),
+    getWaterDay(uid, s, day),
   ])
   const t = totals(rows)
   return {
@@ -129,6 +130,7 @@ export async function getDay(uid: string, date?: string) {
     // kcal from guessed entries (source "estimate"): how approximate the day total is
     estimate_kcal: totals(rows.filter(r => r.source === 'estimate')).kcal,
     remaining_kcal: r1(s.kcalGoal - t.kcal),
+    water,
     meals: Object.fromEntries(MEALS.map((m) => {
       const list = rows.filter(r => r.meal === m)
       return [m, { totals: totals(list), entries: list.map(publicEntry) }]
@@ -208,10 +210,11 @@ export async function setGoals(uid: string, g: GoalsInput) {
   if (g.p_goal !== undefined) set.pGoal = g.p_goal
   if (g.f_goal !== undefined) set.fGoal = g.f_goal
   if (g.c_goal !== undefined) set.cGoal = g.c_goal
+  if (g.water_goal_ml !== undefined) set.waterGoalMl = g.water_goal_ml
   if (!Object.keys(set).length) throw createError({ statusCode: 400, statusMessage: 'Nothing to update' })
   await getSettings(uid)
   const [row] = await useDb().update(schema.settings).set(set).where(eq(schema.settings.userId, uid)).returning().catch(dbError)
-  return { kcal_goal: row!.kcalGoal, p_goal: row!.pGoal, f_goal: row!.fGoal, c_goal: row!.cGoal }
+  return { kcal_goal: row!.kcalGoal, p_goal: row!.pGoal, f_goal: row!.fGoal, c_goal: row!.cGoal, water_goal_ml: row!.waterGoalMl }
 }
 
 // ---------- products ----------

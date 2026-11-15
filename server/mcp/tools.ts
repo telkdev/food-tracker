@@ -12,6 +12,7 @@ const slimStreak = (k: Day['streak']) => ({ days: k.days, today_logged: k.today_
 const dayTotals = (d: Day) => ({
   date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal,
   ...(d.estimate_kcal ? { estimate_kcal: d.estimate_kcal } : {}),
+  water_ml: d.water.ml, water_goal_ml: d.water.goal_ml,
   // [eaten g, daily reference g, share of kcal with known values]; only when something is known
   ...(d.extras.fiber.coverage || d.extras.sugar.coverage || d.extras.salt.coverage
     ? { fiber_sugar_salt: Object.fromEntries((['fiber', 'sugar', 'salt'] as const).map(k => [k, [d.extras[k].g, d.extras_goal[k], d.extras[k].coverage]])) }
@@ -23,6 +24,7 @@ const slimDay = (d: Day) => ({
   ...(d.goal.p || d.goal.f || d.goal.c ? { macro_goals: { p: d.goal.p, f: d.goal.f, c: d.goal.c } } : {}),
   meals: Object.fromEntries(Object.entries(d.meals).filter(([, m]) => m.entries.length)
     .map(([k, m]) => [k, { kcal: m.totals.kcal, entries: m.entries.map(slimEntry) }])),
+  ...(d.water.logs.length ? { water_logs: d.water.logs.map(w => [w.id, w.ml]) } : {}),
 })
 
 /** Run a tool body, log its size for the usage page, and turn errors into a tool error Claude can read and fix. */
@@ -62,6 +64,7 @@ export function buildMcpServer(uid: string) {
     { name: 'food-tracker', title: 'Food Tracker', version: '0.6.0' },
     { instructions: [
       'Personal food diary of the signed-in user. This server IS the diary: an entry exists only if log_food or log_meal returned it. All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
+      'Water and other drinks without calories (still or sparkling water, unsweetened tea, black coffee, herbal tea) go to log_water in ml, never to log_food. Drinks with calories (milk, juice, cola, latte, kefir, protein shake) go to log_food only and do not count as water.',
       'When the user says they ate or drank something, or asks to log, record, add or save food (e.g. "запиши", "записать", "внеси", "запиши в приложение", "я съел", "I had", "log this"), log it here in this same turn with log_food or log_meal. Never put it into a draft, note, artifact, document, memory, canvas or a table in the chat instead, and never only say you will log it later. If grams are missing for some items, log the items you can and ask about the rest in the same reply, then log them as soon as he answers. After logging, confirm briefly with what was saved and the day totals returned by the call.',
       'At the start of every conversation about food, call get_context once: it returns his standing rules (follow them), his usual meals and his most frequent products with the grams he usually eats.',
       'Prefer, in order: a usual meal (log_meal), a frequent or saved product (product_id), search_products, and only then your own estimate.',
@@ -257,12 +260,39 @@ export function buildMcpServer(uid: string) {
     }
   }))
 
+  server.registerTool('log_water', {
+    title: 'Log water',
+    description: [
+      'Add drunk water to the diary in ml. Use for water and drinks without calories (sparkling water, unsweetened tea, black coffee); drinks with calories go to log_food instead.',
+      'One call per drink, e.g. a glass = 250 ml, a bottle = 500 ml; use his own cup/bottle size from get_context prefs when he has one, otherwise ask if unclear.',
+      'Returns the day\'s water total and goal (goal from his weight and activity, or set in Settings). Confirm briefly, e.g. "+500 мл, 1,5 из 2,4 л".',
+    ].join(' '),
+    inputSchema: {
+      ml: z.number().int().min(1).max(3000).describe('Volume in ml'),
+      date: date.optional(),
+    },
+  }, tool('log_water', async (args) => {
+    const r = await logWater(uid, parseOr400(logWaterSchema, args))
+    return { id: r.created.id, added_ml: r.created.ml, date: r.water.date, water_ml: r.water.ml, water_goal_ml: r.water.goal_ml }
+  }))
+
+  server.registerTool('delete_water', {
+    title: 'Delete water',
+    description: 'Remove one water log by id (from log_water, or water_logs [id, ml] in get_day), e.g. when he says it was logged by mistake. Returns the new day total.',
+    inputSchema: { id: z.string() },
+    annotations: { destructiveHint: true },
+  }, tool('delete_water', async (args: { id: string }) => {
+    const r = await deleteWater(uid, parseOr400(z.uuid(), args.id))
+    return { deleted_ml: r.deleted.ml, date: r.water.date, water_ml: r.water.ml, water_goal_ml: r.water.goal_ml }
+  }))
+
   server.registerTool('set_goals', {
     title: 'Set goals',
-    description: 'Set the daily kcal goal and optional protein/fat/carbs goals in grams. Pass null to clear a macro goal.',
+    description: 'Set the daily kcal goal and optional protein/fat/carbs goals in grams, and the daily water goal in ml. Pass null to clear a macro goal; water_goal_ml null goes back to the goal suggested from his weight and activity.',
     inputSchema: {
       kcal_goal: z.number().int().optional(), p_goal: z.number().int().nullable().optional(),
       f_goal: z.number().int().nullable().optional(), c_goal: z.number().int().nullable().optional(),
+      water_goal_ml: z.number().int().nullable().optional(),
     },
   }, tool('set_goals', async args => setGoals(uid, parseOr400(goalsSchema, args))))
 

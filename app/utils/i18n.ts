@@ -479,6 +479,25 @@ const en = {
   ins_basics_bulk_b: 'A 5–10% surplus (+0.25–0.5% of body weight a week), protein {lo}–{hi} g/kg, strength training with progression. A bigger surplus mostly adds fat.',
   ins_noWeight_t: 'Check progress beyond the diary',
   ins_noWeight_b: 'No weigh-ins yet: open “About me” or log your weight above. In recomposition weight can stay flat while the body changes: weigh 3–4 mornings a week, measure your waist weekly, track strength. Flat weight, smaller waist, growing strength means it works.',
+  // water
+  water: 'Water',
+  ml: 'ml',
+  liter: 'L',
+  waterAdded: '+{ml} ml of water',
+  waterRemoved: 'Water entry removed',
+  waterMore: 'Other amount and today’s log',
+  waterDone: 'Goal reached',
+  waterLeft: '{v} L to go',
+  waterCustom: 'Your amount',
+  waterGoalManual: 'You set this goal yourself.',
+  waterGoalAutoHint: 'The goal is a rough guide from your weight and activity. Thirst and pale-yellow urine are the real check. Tea and coffee count; milk, juice and other drinks with calories go into the diary as food.',
+  waterChangeGoal: 'Change goal',
+  waterGoal: 'Water',
+  waterGoalEmpty: 'empty = suggested',
+  waterBasis_weight: 'Suggested {ml} ml: about 24 ml per kg of body weight (30 ml/kg minus ~20% that comes with food), plus daily activity and training.',
+  waterBasis_sex: 'Suggested {ml} ml: the EFSA average for drinks. Add your weight in “About me” for a personal goal.',
+  waterBasis_default: 'Suggested {ml} ml: a middle value. Fill in “About me” (sex, weight, activity) for a personal goal.',
+  waterTrainingDay: 'On a training day drink about +{ml} ml more.',
 }
 
 export type MsgKey = keyof typeof en
@@ -943,6 +962,25 @@ const ru: Record<MsgKey, string> = {
   ins_basics_bulk_b: 'Профицит 5–10% (+0,25–0,5% веса в неделю), белок {lo}–{hi} г/кг, силовые с прогрессией. Больший профицит в основном добавляет жир.',
   ins_noWeight_t: 'Проверяй прогресс не только по дневнику',
   ins_noWeight_b: 'Взвешиваний пока нет: открой «О себе» или запиши вес выше. При рекомпозиции вес может стоять, пока тело меняется: взвешивайся 3–4 утра в неделю, раз в неделю меряй талию, следи за рабочими весами. Вес стоит, талия меньше, сила растёт: значит, работает.',
+  // water
+  water: 'Вода',
+  ml: 'мл',
+  liter: 'л',
+  waterAdded: '+{ml} мл воды',
+  waterRemoved: 'Запись воды удалена',
+  waterMore: 'Другой объём и записи за день',
+  waterDone: 'Норма выполнена',
+  waterLeft: 'ещё {v} л',
+  waterCustom: 'Свой объём',
+  waterGoalManual: 'Эту норму вы задали сами.',
+  waterGoalAutoHint: 'Норма примерная: по весу и активности. Главный ориентир — жажда и светлая моча. Чай и кофе считаются; молоко, сок и другие напитки с калориями записывайте как еду.',
+  waterChangeGoal: 'Изменить норму',
+  waterGoal: 'Вода',
+  waterGoalEmpty: 'пусто = рекомендованная',
+  waterBasis_weight: 'Рекомендуем {ml} мл: около 24 мл на кг веса (30 мл/кг минус ~20%, которые приходят с едой) плюс активность и тренировки.',
+  waterBasis_sex: 'Рекомендуем {ml} мл: среднее по EFSA для напитков. Укажите вес в «О себе», чтобы норма была личной.',
+  waterBasis_default: 'Рекомендуем {ml} мл: среднее значение. Заполните «О себе» (пол, вес, активность), чтобы норма была личной.',
+  waterTrainingDay: 'В день тренировки пейте примерно на {ml} мл больше.',
 }
 
 const uk: Record<MsgKey, string> = {
@@ -1405,6 +1443,25 @@ const uk: Record<MsgKey, string> = {
   ins_basics_bulk_b: 'Профіцит 5–10% (+0,25–0,5% ваги на тиждень), білок {lo}–{hi} г/кг, силові з прогресією. Більший профіцит здебільшого додає жир.',
   ins_noWeight_t: 'Перевіряй прогрес не лише за щоденником',
   ins_noWeight_b: 'Зважувань поки немає: відкрий «Про себе» або запиши вагу вище. При рекомпозиції вага може стояти, поки тіло змінюється: зважуйся 3–4 ранки на тиждень, раз на тиждень міряй талію, стеж за робочими вагами. Вага стоїть, талія менша, сила росте: отже, працює.',
+  // water
+  water: 'Вода',
+  ml: 'мл',
+  liter: 'л',
+  waterAdded: '+{ml} мл води',
+  waterRemoved: 'Запис води видалено',
+  waterMore: 'Інший об’єм і записи за день',
+  waterDone: 'Норму виконано',
+  waterLeft: 'ще {v} л',
+  waterCustom: 'Свій об’єм',
+  waterGoalManual: 'Цю норму ви задали самі.',
+  waterGoalAutoHint: 'Норма приблизна: за вагою та активністю. Головний орієнтир — спрага і світла сеча. Чай і кава рахуються; молоко, сік та інші напої з калоріями записуйте як їжу.',
+  waterChangeGoal: 'Змінити норму',
+  waterGoal: 'Вода',
+  waterGoalEmpty: 'порожньо = рекомендована',
+  waterBasis_weight: 'Рекомендуємо {ml} мл: близько 24 мл на кг ваги (30 мл/кг мінус ~20%, що надходять з їжею) плюс активність і тренування.',
+  waterBasis_sex: 'Рекомендуємо {ml} мл: середнє за EFSA для напоїв. Вкажіть вагу в «Про себе», щоб норма була особистою.',
+  waterBasis_default: 'Рекомендуємо {ml} мл: середнє значення. Заповніть «Про себе» (стать, вага, активність), щоб норма була особистою.',
+  waterTrainingDay: 'У день тренування пийте приблизно на {ml} мл більше.',
 }
 
 export const messages: Record<Locale, Record<MsgKey, string>> = { en, ru, uk }
