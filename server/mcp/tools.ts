@@ -12,6 +12,10 @@ const slimStreak = (k: Day['streak']) => ({ days: k.days, today_logged: k.today_
 const dayTotals = (d: Day) => ({
   date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal,
   ...(d.estimate_kcal ? { estimate_kcal: d.estimate_kcal } : {}),
+  // [eaten g, daily reference g, share of kcal with known values]; only when something is known
+  ...(d.extras.fiber.coverage || d.extras.sugar.coverage || d.extras.salt.coverage
+    ? { fiber_sugar_salt: Object.fromEntries((['fiber', 'sugar', 'salt'] as const).map(k => [k, [d.extras[k].g, d.extras_goal[k], d.extras[k].coverage]])) }
+    : {}),
   streak: slimStreak(d.streak),
 })
 const slimDay = (d: Day) => ({
@@ -44,6 +48,9 @@ const per100 = z.object({
   p: z.number().describe('protein, g per 100 g'),
   f: z.number().describe('fat, g per 100 g'),
   c: z.number().describe('carbohydrates, g per 100 g'),
+  fiber: z.number().optional().describe('fiber, g per 100 g. Pass when the label or Open Food Facts gives it; omit if unknown (never guess 0)'),
+  sugar: z.number().optional().describe('sugars (total, "of which sugars"), g per 100 g; omit if unknown'),
+  salt: z.number().optional().describe('salt, g per 100 g (if only sodium is given: sodium × 2.5); omit if unknown'),
 })
 const meal = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
 const date = z.string().describe('Local date YYYY-MM-DD (Europe/Warsaw). Omit for today.')
@@ -52,7 +59,7 @@ const date = z.string().describe('Local date YYYY-MM-DD (Europe/Warsaw). Omit fo
 export function buildMcpServer(uid: string) {
   const tool = makeTool(uid)
   const server = new McpServer(
-    { name: 'food-tracker', title: 'Food Tracker', version: '0.5.0' },
+    { name: 'food-tracker', title: 'Food Tracker', version: '0.6.0' },
     { instructions: [
       'Personal food diary of the signed-in user. This server IS the diary: an entry exists only if log_food or log_meal returned it. All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
       'When the user says they ate or drank something, or asks to log, record, add or save food (e.g. "запиши", "записать", "внеси", "запиши в приложение", "я съел", "I had", "log this"), log it here in this same turn with log_food or log_meal. Never put it into a draft, note, artifact, document, memory, canvas or a table in the chat instead, and never only say you will log it later. If grams are missing for some items, log the items you can and ask about the rest in the same reply, then log them as soon as he answers. After logging, confirm briefly with what was saved and the day totals returned by the call.',
@@ -76,7 +83,8 @@ export function buildMcpServer(uid: string) {
       'Oil, butter and sauces are separate items in the same call, never folded into the dish; ask about them for cooked or dressed food.',
       'source: "label" (read from a package photo), "off" (Open Food Facts), "generic" (standard values for a generic food), "estimate" (you guessed grams or values, e.g. plate photo).',
       'Pass meal explicitly when the user said it; otherwise it is inferred from the time. Pass date when the user means another day (e.g. logging last night\'s dinner after midnight).',
-      'Returns the created entries (g = grams) and the updated day totals.',
+      'per100 may also carry fiber, sugar and salt: include them whenever the label or Open Food Facts has them, and omit them when unknown.',
+      'Returns the created entries (g = grams) and the updated day totals (fiber_sugar_salt: [eaten g, daily reference g, share of kcal with known values]).',
       'If it times out (server waking), check get_day before retrying so nothing is logged twice.',
     ].join(' '),
     inputSchema: {
@@ -199,7 +207,7 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('upsert_product', {
     title: 'Save a product',
-    description: 'Save a product to My products, e.g. after reading a nutrition label from a photo (source "label"). With a barcode, an existing product with that barcode is updated. Values are per 100 g, as printed in the label\'s "100 g" column, never per serving.',
+    description: 'Save a product to My products, e.g. after reading a nutrition label from a photo (source "label"). With a barcode, an existing product with that barcode is updated. Values are per 100 g, as printed in the label\'s "100 g" column, never per serving. Also read fiber ("błonnik"), sugars ("w tym cukry") and salt ("sól") from the label into per100 when printed.',
     inputSchema: {
       name: z.string(), brand: z.string().optional(), barcode: z.string().optional(),
       per100, source: z.enum(['label', 'off', 'generic', 'estimate']), note: z.string().optional(),

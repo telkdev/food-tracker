@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Product, ProductSource, SearchResult } from '~/utils/types'
+import type { Per100, Product, ProductSource, SearchResult } from '~/utils/types'
 import { errMsg, parseDecimal } from '~/utils/format'
 
 /** Create (product = 'new') or edit a saved product. */
@@ -7,7 +7,10 @@ const props = defineProps<{ product: Product | 'new' | null }>()
 const emit = defineEmits<{ close: [], saved: [Product, boolean], delete: [Product], log: [Product], open: [Product] }>()
 const { t, n } = useT()
 
-const f = reactive({ name: '', brand: '', barcode: '', kcal: '', p: '', f: '', c: '', source: 'label' as ProductSource })
+const f = reactive({ name: '', brand: '', barcode: '', kcal: '', p: '', f: '', c: '', fiber: '', sugar: '', salt: '', source: 'label' as ProductSource })
+// optional extras: '' = unknown (not 0)
+const xs = (v?: number) => v === undefined || v === null ? '' : String(v)
+const extrasOf = (p: { fiber?: number, sugar?: number, salt?: number }) => ({ fiber: xs(p.fiber), sugar: xs(p.sugar), salt: xs(p.salt) })
 const touched = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -79,7 +82,7 @@ function pickSuggestion(r: SearchResult) {
   f.brand = r.brand ?? f.brand
   f.barcode = r.barcode ?? f.barcode
   if (r.per100) {
-    Object.assign(f, { kcal: String(r.per100.kcal), p: String(r.per100.p), f: String(r.per100.f), c: String(r.per100.c), source: 'off' })
+    Object.assign(f, { kcal: String(r.per100.kcal), p: String(r.per100.p), f: String(r.per100.f), c: String(r.per100.c), ...extrasOf(r.per100), source: 'off' })
     filledNote.value = t('suggestFilled')
   }
   else filledNote.value = t('suggestFilledPartial')
@@ -105,11 +108,16 @@ async function onScanned(code: string) {
 watch(() => props.product, (p) => {
   touched.value = false; error.value = ''; resetSuggest()
   if (!p) return
-  if (p === 'new') Object.assign(f, { name: '', brand: '', barcode: '', kcal: '', p: '', f: '', c: '', source: 'label' })
-  else Object.assign(f, { name: p.name, brand: p.brand ?? '', barcode: p.barcode ?? '', kcal: String(p.per100.kcal), p: String(p.per100.p), f: String(p.per100.f), c: String(p.per100.c), source: p.source })
+  if (p === 'new') Object.assign(f, { name: '', brand: '', barcode: '', kcal: '', p: '', f: '', c: '', fiber: '', sugar: '', salt: '', source: 'label' })
+  else Object.assign(f, { name: p.name, brand: p.brand ?? '', barcode: p.barcode ?? '', kcal: String(p.per100.kcal), p: String(p.per100.p), f: String(p.per100.f), c: String(p.per100.c), ...extrasOf(p.per100), source: p.source })
 }, { immediate: true })
 
-const vals = computed(() => ({ kcal: parseDecimal(f.kcal), p: parseDecimal(f.p || '0'), f: parseDecimal(f.f || '0'), c: parseDecimal(f.c || '0') }))
+const opt = (v: string) => v.trim() === '' ? undefined : parseDecimal(v)
+const vals = computed(() => {
+  const v: Per100 = { kcal: parseDecimal(f.kcal), p: parseDecimal(f.p || '0'), f: parseDecimal(f.f || '0'), c: parseDecimal(f.c || '0') }
+  for (const k of ['fiber', 'sugar', 'salt'] as const) { const x = opt(f[k]); if (x !== undefined) v[k] = x }
+  return v
+})
 const errors = computed(() => {
   const v = vals.value
   const e: Record<string, string> = {}
@@ -117,6 +125,8 @@ const errors = computed(() => {
   if (!Number.isFinite(v.kcal) || v.kcal < 0 || v.kcal > 950) e.kcal = f.kcal === '' ? t('required') : t('kcalRangeError')
   for (const k of ['p', 'f', 'c'] as const) if (!Number.isFinite(v[k]) || v[k] < 0 || v[k] > 100) e[k] = '0–100'
   if (!e.p && !e.f && !e.c && v.p + v.f + v.c > 105) e.sum = t('macroSumError')
+  for (const k of ['fiber', 'sugar', 'salt'] as const) { const x = v[k]; if (x !== undefined && (!Number.isFinite(x) || x < 0 || x > 100)) e.extras = `${t(k)}: 0–100` }
+  if (!e.extras && v.sugar !== undefined && Number.isFinite(v.c) && v.sugar > v.c + 1) e.extras = t('sugarOverCarbs')
   const bc = f.barcode.replace(/\s/g, '')
   if (bc && !/^\d{8,14}$/.test(bc)) e.barcode = t('barcodeInvalid')
   return e
@@ -197,6 +207,11 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
           <label class="field"><span><i class="dot c" />{{ t('carbs') }}</span><input v-model="f.c" class="input num" inputmode="decimal" placeholder="0" :aria-invalid="touched && !!errors.c"></label>
         </div>
         <small v-if="touched && (errors.kcal || errors.sum || errors.p || errors.f || errors.c)" class="ferr">{{ errors.kcal || errors.sum || `${t('protein')}/${t('fat')}/${t('carbs')}: 0–100` }}</small>
+        <div class="grid3">
+          <label v-for="k in (['fiber', 'sugar', 'salt'] as const)" :key="k" class="field"><span><Icon :name="k" :size="14" :style="{ color: `var(--${k})` }" />{{ t(`${k}Short`) }}</span><input v-model="f[k]" class="input num" inputmode="decimal" :placeholder="'—'" :aria-invalid="touched && !!errors.extras"></label>
+        </div>
+        <small v-if="touched && errors.extras" class="ferr">{{ errors.extras }}</small>
+        <small v-else class="hint">{{ t('extrasOptional') }}</small>
       </fieldset>
       <div class="field">
         <span>{{ t('source') }}</span>
@@ -225,6 +240,10 @@ const sources: ProductSource[] = ['label', 'off', 'generic', 'estimate']
 .head h2 { font-size: var(--fs-xl); }
 .form { display: grid; gap: var(--s-4); }
 .grid2 { display: grid; grid-template-columns: 1fr; gap: var(--s-4); }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.grid3 .input { padding: 0 var(--s-2); text-align: center; }
+.grid3 .field > span { font-size: var(--fs-xs); display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; color: var(--ink-2); }
+.hint { font-size: var(--fs-2xs); color: var(--ink-3); }
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
 .grid4 .input { padding: 0 var(--s-2); text-align: center; }
 .grid4 .field > span { font-size: var(--fs-xs); display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }

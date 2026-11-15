@@ -71,6 +71,9 @@
   --protein: #a35d84;
   --fat: #a07c2e;
   --carbs: #4f80ad;
+  --fiber: #4f7f3f;   /* nutrient icons + bars (Figma "Food Tracker · Nutrient icons") */
+  --sugar: #b25d6e;
+  --salt: #4f7f86;
   --estimate: #94590f;
   --estimate-soft: #f6ead6;
   --off: #2f6b8f;
@@ -109,6 +112,9 @@
     --protein: #d494b8;
     --fat: #d9b56a;
     --carbs: #8ab4de;
+    --fiber: #9fcc86;
+    --sugar: #e79aa8;
+    --salt: #8fc4ca;
     --estimate: #e2ad68;
     --estimate-soft: #33261a;
     --off: #8cc3e6;

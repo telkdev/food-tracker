@@ -52,7 +52,7 @@ async function resolveItems(uid: string, items: NonNullable<SaveMealInput['items
   return items.map((i, n) => {
     const p = i.product_id ? byId.get(i.product_id) : undefined
     if (i.product_id && !p) throw createError({ statusCode: 400, statusMessage: `items[${n}]: product ${i.product_id} not found` })
-    const per100 = p ? { kcal: p.kcal100, p: p.p100, f: p.f100, c: p.c100 } : i.per100
+    const per100 = p ? per100Of(p) : i.per100
     const source = i.source ?? p?.source
     if (!per100 || !source) throw createError({ statusCode: 400, statusMessage: `items[${n}] (${i.name}): give product_id, or per100 and source` })
     return { name: i.name, grams: i.grams, product_id: p?.id ?? null, per100, source }
@@ -67,7 +67,7 @@ async function itemsFromDiary(uid: string, date: string, meal: string): Promise<
   if (!rows.length) throw createError({ statusCode: 400, statusMessage: `Nothing logged for ${meal} on ${date}` })
   return rows.map(r => ({
     name: r.name, grams: r.grams, product_id: r.productId,
-    per100: { kcal: r.kcal100, p: r.p100, f: r.f100, c: r.c100 }, source: r.source,
+    per100: per100Of(r), source: r.source,
   }))
 }
 
