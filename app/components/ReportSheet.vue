@@ -8,7 +8,6 @@ import { addDays, diffDays, errMsg } from '~/utils/format'
 const props = defineProps<{ open: boolean, today: string }>()
 const emit = defineEmits<{ close: [] }>()
 const { t, n, locale } = useT()
-const toast = useToast()
 
 type Preset = 'last7' | 'prevWeek' | 'last30' | 'thisMonth' | 'prevMonth' | 'custom'
 const PRESETS: { id: Preset, key: Parameters<typeof t>[0] }[] = [
@@ -69,35 +68,68 @@ onMounted(() => {
   catch { canShare.value = false }
 })
 
-const busy = ref(false)
-async function make(mode: 'share' | 'download') {
-  if (!valid.value || busy.value) return
-  busy.value = true
+/*
+ * iOS Safari only opens the share sheet if navigator.share() runs right inside the tap. Fetching the PDF
+ * first (0.5–60 s with a cold server) uses that up and share() fails with NotAllowedError ("cannot share").
+ * So the PDF is made as soon as the sheet opens or the period changes, and the tap shares a ready file.
+ */
+const ready = ref<File | null>(null)
+const preparing = ref(false)
+const prepError = ref('')
+const wantKey = computed(() => `${period.value.from}|${period.value.to}|${details.value ? 1 : 0}|${locale.value}`)
+let readyKey = ''
+let timer: ReturnType<typeof setTimeout> | undefined
+
+async function prepare() {
+  if (!props.open || !valid.value) return
+  const key = wantKey.value
+  if (readyKey === key && ready.value) return
+  ready.value = null
+  preparing.value = true
+  prepError.value = ''
   try {
     const { from, to } = period.value
     const blob = await $fetch<Blob>('/api/report.pdf', {
       query: { from, to, lang: locale.value, details: details.value ? '1' : '0' },
       responseType: 'blob',
     })
-    const name = `food-report_${from}_${to}.pdf`
-    const file = new File([blob], name, { type: 'application/pdf' })
-    if (mode === 'share' && navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: t('reportTitle') }) }
-      catch (e: any) { if (e?.name !== 'AbortError') throw e }
-    }
-    else {
-      const url = URL.createObjectURL(file)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = name
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    }
+    if (key !== wantKey.value) return
+    ready.value = new File([blob], `food-report_${from}_${to}.pdf`, { type: 'application/pdf' })
+    readyKey = key
   }
-  catch (e) { toast.show(t('loadFailed', { msg: errMsg(e) })) }
-  finally { busy.value = false }
+  catch (e) { if (key === wantKey.value) prepError.value = errMsg(e) }
+  finally { if (key === wantKey.value) preparing.value = false }
+}
+watch([() => props.open, wantKey], () => {
+  clearTimeout(timer)
+  // custom dates fire on every keystroke of the date field: wait for it to settle
+  timer = setTimeout(prepare, preset.value === 'custom' ? 600 : 0)
+}, { immediate: true })
+
+function download(file: File) {
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+function share() {
+  const file = ready.value
+  if (!file) return
+  if (!navigator.canShare?.({ files: [file] })) return download(file)
+  // no await before this call: it must stay inside the tap
+  navigator.share({ files: [file], title: t('reportTitle') }).catch((e: any) => {
+    if (e?.name === 'AbortError') return
+    download(file)
+  })
+}
+
+function onDownload() {
+  if (ready.value) download(ready.value)
 }
 </script>
 
@@ -133,12 +165,16 @@ async function make(mode: 'share' | 'download') {
       </label>
 
       <div class="actions">
-        <button v-if="canShare" type="button" class="btn btn-primary btn-lg btn-block" :disabled="!valid || busy" @click="make('share')">
-          <Icon name="share" :size="20" /> {{ busy ? t('reportMaking') : t('reportShare') }}
+        <button v-if="canShare" type="button" class="btn btn-primary btn-lg btn-block" :disabled="!ready" @click="share">
+          <Icon name="share" :size="20" /> {{ preparing ? t('reportMaking') : t('reportShare') }}
         </button>
-        <button type="button" class="btn btn-lg btn-block" :class="canShare ? 'btn-ghost' : 'btn-primary'" :disabled="!valid || busy" @click="make('download')">
-          <Icon name="download" :size="20" /> {{ busy && !canShare ? t('reportMaking') : t('reportDownload') }}
+        <button type="button" class="btn btn-lg btn-block" :class="canShare ? 'btn-ghost' : 'btn-primary'" :disabled="!ready" @click="onDownload">
+          <Icon name="download" :size="20" /> {{ preparing && !canShare ? t('reportMaking') : t('reportDownload') }}
         </button>
+        <p v-if="prepError" class="warn">
+          {{ t('loadFailed', { msg: prepError }) }}
+          <button type="button" class="link" @click="prepare">{{ t('retry') }}</button>
+        </p>
       </div>
       <p class="hint">{{ t('reportHint') }}</p>
     </div>
@@ -157,4 +193,5 @@ async function make(mode: 'share' | 'download') {
 .actions { display: grid; gap: var(--s-2); }
 .actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); }
 .hint { font-size: var(--fs-xs); color: var(--ink-3); }
+.link { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; }
 </style>
