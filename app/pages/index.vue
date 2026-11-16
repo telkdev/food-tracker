@@ -284,7 +284,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
         <!-- order = priority: what's left → meals → suggestion → secondary trackers → details -->
         <MealStrip :meals="day.meals" :goal="goal" @add="openAdd" @jump="jumpTo" />
 
-        <DayPlanCard v-if="rel === 0" :date="current" :stamp="`${day.totals.kcal}`" @added="onAdded" />
+        <DayPlanCard v-if="rel === 0" :date="current" :day="day" @added="onAdded" />
 
         <WaterCard v-if="day.water" :water="day.water" :date="day.date" @change="onWater" />
 

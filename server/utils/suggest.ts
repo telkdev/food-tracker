@@ -22,6 +22,8 @@ const mode = <T>(xs: T[]) => {
   return [...n].sort((a, b) => b[1] - a[1])[0]![0]
 }
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim()
+/** for matching "he has no X": punctuation ignored, so "Ньокки, готовые" matches "ньокки готовые" */
+const loose = (s: string) => norm(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
 
 /**
  * Suggest portions for the rest of today, only from foods he ate today or in the last `days` days.
@@ -41,7 +43,7 @@ export async function suggestDayPlan(uid: string, input: SuggestPlanInput = {}) 
   const prods = ids.length ? await useDb().select().from(schema.products).where(and(eq(schema.products.userId, uid), inArray(schema.products.id, ids))) : []
   const prodById = new Map(prods.map(p => [p.id, p]))
 
-  const ex = exclude.map(norm)
+  const ex = exclude.map(x => ({ raw: x.trim(), text: loose(x) }))
   const groups = new Map<string, typeof rows>()
   for (const r of rows) {
     const key = r.productId && prodById.has(r.productId) ? r.productId : `n:${norm(r.name)}`
@@ -54,7 +56,8 @@ export async function suggestDayPlan(uid: string, input: SuggestPlanInput = {}) 
     const prod = last.productId ? prodById.get(last.productId) : undefined
     const per100 = prod ? per100Of(prod) : per100Of(last)
     const name = last.name
-    if (ex.some(x => norm(name).includes(x) || x === key)) continue
+    // by group key / product id, or by name (catches the same food logged both with and without a product)
+    if (ex.some(x => x.raw === key || (x.text && loose(name).includes(x.text)))) continue
     // oil, butter, lard: something you add to a dish, not a food to plan
     if (per100.f >= 70) { skipped.push(name); continue }
     const typical = Math.round(median(list.map(r => r.grams)))
