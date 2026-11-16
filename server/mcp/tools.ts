@@ -324,5 +324,40 @@ export function buildMcpServer(uid: string) {
     },
   }, tool('set_goals', async args => setGoals(uid, parseOr400(goalsSchema, args))))
 
+  server.registerTool('get_report', {
+    title: 'Coach report for a period',
+    description: [
+      'Summary for a period (a week, a month, any range up to a year) as a coach would read it: averages over complete days',
+      '(days under 40% of the kcal goal are partial and left out), goals, days within ±10% kcal, days with protein ≥ 90% of goal,',
+      'macro energy split, meal split, fiber/sugar/salt (lower bound, with coverage), water, top foods by kcal and by protein,',
+      'weight change, and per-day totals. pdf_url downloads the same report as a PDF in a browser where he is logged in to the app;',
+      'in the app it is Week → "PDF-отчёт", which can share it straight to Telegram. Use this when he asks for a report or a summary for his coach.',
+    ].join(' '),
+    inputSchema: {
+      from: z.string().describe('YYYY-MM-DD, first day'),
+      to: z.string().describe('YYYY-MM-DD, last day (clamped to today)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, tool('get_report', async ({ from, to }: { from: string, to: string }) => {
+    const f = parseOr400(isoDate, from)
+    const t = parseOr400(isoDate, to)
+    const { report: r, meta } = await getReport(uid, f, t)
+    const origin = (useRuntimeConfig().siteUrl || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '')
+    return {
+      name: meta.name, goal_type: meta.goal_type, from: r.from, to: r.to,
+      period_days: r.period_days, logged_days: r.logged_days, full_days: r.full_days, partial_days: r.partial_days,
+      goal: { kcal: r.goal.kcal, p: r.goal.p, f: r.goal.f, c: r.goal.c, water_ml: r.goal.water_ml, ...(r.goal.p_suggested ? { p_from_profile: true } : {}) },
+      avg: r.avg, energy_pct: r.energy_pct, adherence: r.adherence, extras: r.extras, water: r.water,
+      meal_share_pct: r.meal_share, estimate_pct: r.estimate_pct,
+      top_kcal: r.top_kcal.map(x => [x.name, x.times, x.grams, x.kcal, x.kcal_share, x.p]),
+      top_protein: r.top_protein.map(x => [x.name, x.times, x.grams, x.p, x.p_share]),
+      top_format: { top_kcal: '[name, times, grams, kcal, % of kcal, protein g]', top_protein: '[name, times, grams, protein g, % of protein]' },
+      ...(r.weight ? { weight: { start: r.weight.start, end: r.weight.end, change_kg: r.weight.change, per_week_kg: r.weight.per_week, weigh_ins: r.weight.weigh_ins } } : {}),
+      days: r.days.filter(d => d.logged).map(d => [d.date, d.kcal, d.p, d.f, d.c, d.water_ml, d.partial ? 1 : 0]),
+      days_format: '[date, kcal, p, f, c, water ml, partial]',
+      pdf_url: `${origin}/api/report.pdf?from=${r.from}&to=${r.to}&lang=ru&details=1`,
+    }
+  }))
+
   return server
 }

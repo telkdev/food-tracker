@@ -71,3 +71,11 @@ Checked against current docs on 2026-11-07.
 - Milestones are 10, 20, 30, 50, 100–300 by 50, 365, then every 100. Today shows the count under the title and a soft pill on a milestone day; no levels, badges or notifications.
 - A streak from another app is `settings.streak_carry_days` ending on `streak_carry_until`, set in Settings. Carried days are treated as logged only for the streak, never as entries, so totals, averages and the week view stay honest. It continues only if every day after `carry_until` is logged here.
 - `get_day`, `get_context` and log tools return `streak: { days, today_logged, milestone? }`; Claude is told to mention it only in passing.
+
+## Coach report PDF (2026-11-16)
+
+- Server-side PDF with pdfkit (pure JS, ~2 MB of deps, ~0.5 s and a few MB of RAM per report). Not headless Chrome: Chromium alone needs ~300 MB of the 512 MB free Render instance and makes the cold start worse. Not a print stylesheet + `window.print()`: on an iPhone PWA that gives no file to send, and the layout differs per browser.
+- Fonts: Onest 400/500/700 static TTFs (OFL) in `server/assets/fonts`, read through Nitro server assets; pdfkit's built-in Helvetica has no Cyrillic. The document's default font is set to Onest so pdfkit never reads its AFM files.
+- `GET /api/report.pdf?from&to&lang&details=1` (A4: KPI tiles, kcal and protein bars with goal lines, macro and meal split, daily table, top foods by kcal and protein, weight, optional food-by-food diary). `GET /api/report` gives the same numbers as JSON; MCP `get_report` returns them compactly plus `pdf_url`.
+- Same rules as Tips: days under 40 % of the kcal goal are "partial" and left out of averages and goal hits; fiber/sugar/salt are a lower bound with coverage; goals are today's (no goal history); missing macro goals fall back to the profile recommendation (marked with *).
+- In the app: Week → PDF → period preset (last 7 / last week / last 30 / this month / last month / custom), then Share (Web Share with a file, straight to Telegram) or Download. No public share links: the PDF only leaves the app through the user.
