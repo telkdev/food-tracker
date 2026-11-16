@@ -42,6 +42,8 @@ const dayLink = (iso: string) => iso === data.value?.today ? '/' : { path: '/', 
 const list = computed(() => [...days.value].reverse())
 const showLabel = (i: number) => Number(span.value) === 7 || i % 5 === 4 || i === days.value.length - 1
 
+const reportOpen = ref(false)
+
 useHead({ title: () => `${t('weekTitle')} · ${t('appName')}` })
 </script>
 
@@ -49,6 +51,9 @@ useHead({ title: () => `${t('weekTitle')} · ${t('appName')}` })
   <div class="week">
     <header class="top">
       <h1>{{ t('weekTitle') }}</h1>
+      <button type="button" class="pdf" :disabled="!data" :aria-label="t('reportTitle')" :title="t('reportTitle')" @click="reportOpen = true">
+        <Icon name="file" :size="16" />PDF
+      </button>
       <div class="seg span" role="group" :aria-label="t('weekTitle')">
         <button type="button" :aria-pressed="Number(span) === 7" @click="span = 7">{{ t('days7') }}</button>
         <button type="button" :aria-pressed="Number(span) === 30" @click="span = 30">{{ t('days30') }}</button>
@@ -98,6 +103,8 @@ useHead({ title: () => `${t('weekTitle')} · ${t('appName')}` })
         </NuxtLink>
       </section>
     </template>
+
+    <ReportSheet v-if="data" :open="reportOpen" :today="data.today" @close="reportOpen = false" />
   </div>
 </template>
 
@@ -105,7 +112,10 @@ useHead({ title: () => `${t('weekTitle')} · ${t('appName')}` })
 .week { display: grid; gap: var(--s-4); }
 .top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding-top: var(--s-2); min-height: 56px; }
 .top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
-.span { width: 190px; }
+.span { width: 168px; flex: none; }
+.top h1 { flex: 1; min-width: 0; }
+.pdf { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 10px 0 8px; border: 1px solid var(--line-strong); border-radius: var(--r-pill); background: transparent; color: var(--ink-2); font-size: var(--fs-xs); font-weight: var(--fw-medium); flex: none; }
+.pdf:active { background: var(--surface-2); }
 .pad { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
 
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
