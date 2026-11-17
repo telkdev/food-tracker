@@ -2,6 +2,10 @@
  * Day plan from foods the user actually ate recently: pick portions of those foods so the rest of the day
  * lands near the kcal goal, reaches protein, stays under the fat limit and roughly fits carbs.
  *
+ * Candidates come in tiers (what he surely has → what he might buy): eaten in the last days, eaten in the
+ * last weeks, his own products, and a few common lean staples. Each food in the plan costs a little by
+ * tier, so older or new foods only get in when they close a real protein/carb gap.
+ *
  * Pure (no DB): server/utils/suggest.ts feeds it the candidates. Local search over portion steps: from an
  * empty plan, repeatedly add, remove or swap one step of a food, whichever lowers the loss most.
  * Deterministic, explainable, and fast enough for a few dozen candidates.
@@ -23,7 +27,14 @@ export interface PlanCandidate {
   /** meal he usually eats it at */
   usual_meal: PlanMeal
   last_date: string
+  /** 0 = eaten in the last days, 1 = eaten in the last weeks, 2 = one of his products, 3 = common staple */
+  tier?: PlanTier
 }
+
+export type PlanTier = 0 | 1 | 2 | 3
+export const TIER_FROM = ['recent', 'history', 'products', 'staple'] as const
+/** extra loss per distinct food, by tier: prefer fewer things, and things he surely has */
+const TIER_COST = [0.004, 0.02, 0.04, 0.06]
 
 /** What is left for today. A macro goal of null is ignored. */
 export interface PlanTarget { kcal: number, p: number | null, f: number | null, c: number | null }
@@ -40,6 +51,8 @@ export interface PlanItem {
   p: number
   f: number
   c: number
+  /** where it comes from: recent / history (eaten in the last weeks) / products (his library) / staple */
+  from: typeof TIER_FROM[number]
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10
@@ -53,17 +66,17 @@ export function stepOf(typical: number) {
 /**
  * How far a plan is from the target. Squared relative errors:
  * - kcal both ways (over a bit worse);
- * - protein only when short (a little extra is fine);
+ * - protein only when short (a little extra is fine), and that weighs a lot: it's what he struggles with;
  * - fat only when over the limit, and that weighs most: it's a cap, not a target;
- * - carbs both ways but lightly: they're what's left after the other three.
+ * - carbs both ways: short carbs is a real miss too (training fuel), over a bit worse.
  */
-export function planLoss(sum: Macros, t: PlanTarget, items = 0) {
+export function planLoss(sum: Macros, t: PlanTarget, itemCost = 0) {
   const rel = (d: number, scale: number) => d / Math.max(scale, 1)
   const kd = sum.kcal - t.kcal
   let loss = (kd > 0 ? 1.5 : 1) * rel(kd, Math.max(t.kcal, 300)) ** 2 * 3
   if (t.p != null) {
     const short = Math.max(0, t.p - sum.p)
-    loss += 2.5 * rel(short, Math.max(t.p, 20)) ** 2
+    loss += 4 * rel(short, Math.max(t.p, 20)) ** 2
     loss += 0.1 * rel(Math.max(0, sum.p - t.p), Math.max(t.p, 20)) ** 2
   }
   if (t.f != null) {
@@ -72,10 +85,10 @@ export function planLoss(sum: Macros, t: PlanTarget, items = 0) {
   }
   if (t.c != null) {
     const cd = sum.c - Math.max(t.c, 0)
-    loss += (cd > 0 ? 1 : 0.4) * rel(cd, Math.max(t.c, 30)) ** 2
+    loss += (cd > 0 ? 1.2 : 1) * rel(cd, Math.max(t.c, 30)) ** 2
   }
-  // tiny cost per distinct food: prefer fewer things when it hardly matters
-  return loss + items * 0.004
+  // small cost per distinct food (by tier, see TIER_COST)
+  return loss + itemCost
 }
 
 /** Meals still ahead today: after the last meal already logged (snack is always open). */
@@ -102,6 +115,7 @@ export interface PlanResult {
 export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: { ahead?: PlanMeal[], maxItems?: number } = {}): PlanResult {
   const ahead = opts.ahead?.length ? opts.ahead : PLAN_MEALS
   const maxItems = opts.maxItems ?? 7
+  const costOf = (c: PlanCandidate) => TIER_COST[c.tier ?? 0]!
   const grams = new Map<string, number>()
   const byKey = new Map(candidates.map(c => [c.key, c]))
   const sum: Macros = { kcal: 0, p: 0, f: 0, c: 0 }
@@ -114,18 +128,20 @@ export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: {
     const tryMove = (moves: [PlanCandidate, number][]) => {
       const next = { ...sum }
       let n = grams.size
+      let cost = itemCost
       for (const [c, dg] of moves) {
         const cur = grams.get(c.key) ?? 0
         const g = cur + dg
         if (g < 0 || g > maxG(c)) return null
-        if (cur === 0 && g > 0) n++
-        if (cur > 0 && g === 0) n--
+        if (cur === 0 && g > 0) { n++; cost += costOf(c) }
+        if (cur > 0 && g === 0) { n--; cost -= costOf(c) }
         const m = at(c.per100, dg)
         next.kcal += m.kcal; next.p += m.p; next.f += m.f; next.c += m.c
       }
       if (n > maxItems) return null
-      return planLoss(next, target, n)
+      return planLoss(next, target, cost)
     }
+    let itemCost = 0
     let loss = planLoss(sum, target, 0)
     for (let iter = 0; iter < 300; iter++) {
       let best: { moves: [PlanCandidate, number][], loss: number } | null = null
@@ -144,7 +160,10 @@ export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: {
       }
       if (!best) break
       for (const [c, dg] of (best as { moves: [PlanCandidate, number][] }).moves) {
-        const g = (grams.get(c.key) ?? 0) + dg
+        const cur = grams.get(c.key) ?? 0
+        const g = cur + dg
+        if (cur === 0 && g > 0) itemCost += costOf(c)
+        if (cur > 0 && g === 0) itemCost -= costOf(c)
         if (g > 0) grams.set(c.key, g)
         else grams.delete(c.key)
         add(c, dg)
@@ -156,7 +175,7 @@ export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: {
   const items: PlanItem[] = [...grams].map(([key, g]) => {
     const c = byKey.get(key)!
     const m = at(c.per100, g)
-    return { key, name: c.name, product_id: c.product_id, per100: c.per100, source: c.source, grams: g, meal: placeMeal(c.usual_meal, ahead), kcal: r1(m.kcal), p: r1(m.p), f: r1(m.f), c: r1(m.c) }
+    return { key, name: c.name, product_id: c.product_id, per100: c.per100, source: c.source, grams: g, meal: placeMeal(c.usual_meal, ahead), kcal: r1(m.kcal), p: r1(m.p), f: r1(m.f), c: r1(m.c), from: TIER_FROM[c.tier ?? 0] }
   }).sort((a, b) => PLAN_MEALS.indexOf(a.meal) - PLAN_MEALS.indexOf(b.meal) || b.kcal - a.kcal)
 
   const plan = { kcal: r1(sum.kcal), p: r1(sum.p), f: r1(sum.f), c: r1(sum.c) }
@@ -169,8 +188,8 @@ export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: {
   const gaps: string[] = []
   if (target.kcal <= 50) gaps.push('kcal goal already reached: nothing to plan')
   if (target.f != null && target.f <= 0) gaps.push(`fat limit already reached (${r1(-target.f)} g over): only near fat-free foods fit`)
-  if (left.p != null && left.p > 10) gaps.push(`protein still ${Math.round(left.p)} g short: his recent foods can't cover it within kcal and fat; offer a bigger portion of a lean one or a lean protein not in the plan (chicken breast, skyr, egg whites, whey)`)
+  if (left.p != null && left.p > 10) gaps.push(`protein still ${Math.round(left.p)} g short: even with his products and lean staples it doesn't fit within kcal and fat; suggest a protein shake or cutting fat elsewhere`)
   if (target.f != null && target.f > 0 && left.f != null && left.f < -3) gaps.push(`fat ${Math.round(-left.f)} g over the limit even in the best mix`)
-  if (left.kcal > 250) gaps.push(`${Math.round(left.kcal)} kcal still free: not enough suitable recent foods`)
+  if (left.kcal > 250) gaps.push(`${Math.round(left.kcal)} kcal still free: not enough suitable foods`)
   return { items, plan, left_after: left, gaps }
 }

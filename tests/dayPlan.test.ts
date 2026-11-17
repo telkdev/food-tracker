@@ -67,4 +67,18 @@ describe('mealsAhead', () => {
     expect(mealsAhead(['breakfast'])).toEqual(['lunch', 'dinner', 'snack'])
     expect(mealsAhead(['breakfast', 'snack', 'dinner'])).toEqual(['snack'])
   })
+
+  it('reaches for an older food or a staple only when recent foods cannot close protein', () => {
+    const sweets = [c('tiramisu', [283, 4.6, 17, 26], 87, 'snack'), c('pasta, cooked', [158, 5.8, 0.9, 30.9], 150)]
+    const staple: PlanCandidate = { ...c('chicken breast, boiled', [150, 30, 3, 0], 150, 'dinner'), tier: 3 }
+    const t = { kcal: 900, p: 80, f: 25, c: 90 }
+    const only = planDay(sweets, t, { ahead: ['dinner', 'snack'] })
+    const both = planDay([...sweets, staple], t, { ahead: ['dinner', 'snack'] })
+    expect(both.items.find(i => i.name === 'chicken breast, boiled')?.from).toBe('staple')
+    expect(both.left_after.p!).toBeLessThan(only.left_after.p! - 30)
+    // when recent foods already fit, the staple stays out
+    const lean = c('skyr drink natural', [64, 7.6, 1.8, 4.3], 350, 'snack')
+    const fine = planDay([lean, c('pasta, cooked', [158, 5.8, 0.9, 30.9], 150), staple], { kcal: 500, p: 35, f: 10, c: 60 }, { ahead: ['dinner', 'snack'] })
+    expect(fine.items.some(i => i.from === 'staple')).toBe(false)
+  })
 })

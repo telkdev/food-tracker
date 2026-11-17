@@ -183,6 +183,7 @@ const editing = ref<Entry | null>(null)
 const editingMeal = ref<Meal | null>(null)
 function openEdit(e: Entry, meal: Meal) { editing.value = e; editingMeal.value = meal }
 function closeEdit() { editing.value = null }
+const planOpen = ref(false)
 
 async function onSaved() {
   closeEdit()
@@ -281,10 +282,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
           </div>
         </section>
 
-        <!-- order = priority: what's left → meals → suggestion → secondary trackers → details -->
+        <!-- order = priority: what's left → meals → secondary trackers → details (the day plan is the ✦ button) -->
         <MealStrip :meals="day.meals" :goal="goal" @add="openAdd" @jump="jumpTo" />
-
-        <DayPlanCard v-if="rel === 0" :date="current" :day="day" @added="onAdded" />
 
         <WaterCard v-if="day.water" :water="day.water" :date="day.date" @change="onWater" />
 
@@ -298,11 +297,17 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 
     <!-- room for the floating button so the last meal (Snack) is never under it -->
     <div class="fab-room" aria-hidden="true" />
-    <button type="button" class="fab" @click="openAdd()">
-      <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
-    </button>
+    <div class="fabs">
+      <button v-if="rel === 0 && day" type="button" class="fab fab-plan" :aria-label="t('planTitle')" :title="t('planTitle')" @click="planOpen = true">
+        <Icon name="sparkle" :size="24" />
+      </button>
+      <button type="button" class="fab" @click="openAdd()">
+        <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
+      </button>
+    </div>
 
     <AddFoodSheet :open="addOpen" :date="current" :meal="addMeal" :initial-pick="initialPick" @close="addOpen = false" @added="onAdded" />
+    <DayPlanSheet v-if="day" :open="planOpen" :date="current" :day="day" @close="planOpen = false" @added="onAdded" />
     <EditEntrySheet :entry="editing" :meal="editingMeal" @close="closeEdit" @saved="onSaved" @delete="onDelete" />
   </div>
 </template>
@@ -352,16 +357,20 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .loaderr { color: var(--danger); font-size: var(--fs-sm); }
 .foot { text-align: center; padding-top: var(--s-2); }
 
-.fab {
-  position: fixed; z-index: 30;
+.fabs {
+  position: fixed; z-index: 30; display: flex; gap: var(--s-3); align-items: center;
   right: max(var(--gutter), calc((100vw - var(--page-max)) / 2 + var(--gutter)));
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--s-4));
+}
+.fab {
   display: inline-flex; align-items: center; gap: var(--s-2); height: 52px; padding: 0 var(--s-5) 0 var(--s-4);
   border: 0; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
   font-weight: var(--fw-medium); font-size: var(--fs-md); box-shadow: var(--shadow-2);
   transition: transform var(--dur-fast);
 }
 .fab:active { transform: scale(.97); }
+/* ✦ "fill the rest of the day": same height, round, softer so "Add food" stays the main action */
+.fab-plan { width: 52px; padding: 0; justify-content: center; background: var(--surface-raised); color: var(--accent); border: 1px solid var(--line); }
 /* FAB is 52px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 52px more leaves a 16px gap */
 .fab-room { height: 52px; }
 @media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
