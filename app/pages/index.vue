@@ -299,7 +299,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
     <div class="fab-room" aria-hidden="true" />
     <div class="fabs">
       <button v-if="rel === 0 && day" type="button" class="fab fab-plan" :aria-label="t('planTitle')" :title="t('planTitle')" @click="planOpen = true">
-        <Icon name="sparkle" :size="24" />
+        <Icon name="sparkle" :size="26" />
       </button>
       <button type="button" class="fab" @click="openAdd()">
         <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
@@ -370,7 +370,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 }
 .fab:active { transform: scale(.97); }
 /* ✦ "fill the rest of the day": same height, round, softer so "Add food" stays the main action */
-.fab-plan { width: 52px; padding: 0; justify-content: center; background: var(--surface-raised); color: var(--accent); border: 1px solid var(--line); }
+.fab-plan { width: 52px; padding: 0; justify-content: center; background: var(--plan); color: var(--plan-ink); }
+.fab-plan :deep(svg) { fill: currentColor; stroke-width: 1.8; }
 /* FAB is 52px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 52px more leaves a 16px gap */
 .fab-room { height: 52px; }
 @media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
