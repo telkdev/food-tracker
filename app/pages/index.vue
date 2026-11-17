@@ -185,6 +185,38 @@ function openEdit(e: Entry, meal: Meal) { editing.value = e; editingMeal.value =
 function closeEdit() { editing.value = null }
 const planOpen = ref(false)
 
+// ---------- day plan: a row on the calorie card with the plan itself, tap → sheet ----------
+const dayPlan = useDayPlan()
+// any change to today (added, edited, deleted, here or from a chat) → recalculate
+const planStamp = computed(() => {
+  const d = day.value
+  if (!d || rel.value !== 0) return ''
+  const tt = d.totals
+  const count = Object.values(d.meals).reduce((a, m) => a + m.entries.length, 0)
+  return `${d.date}|${count}|${tt.kcal}|${tt.p}|${tt.f}|${tt.c}|${d.goal.kcal}`
+})
+let planTimer: ReturnType<typeof setTimeout> | undefined
+watch(planStamp, (s) => {
+  clearTimeout(planTimer)
+  if (s) planTimer = setTimeout(() => dayPlan.fetchPlan().catch(() => { /* the row just stays hidden */ }), 400)
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(planTimer))
+/** "Ужин: гуляш 330 г, хлеб 105 г, ещё 2" and how the day ends; hidden when there's nothing worth planning */
+const planRow = computed(() => {
+  const p = dayPlan.plan.value
+  if (rel.value !== 0 || !p || p.date !== day.value?.date || !p.items.length || p.left_now.kcal < 150) return null
+  const first = p.items[0]!.meal
+  const mealItems = p.items.filter(i => i.meal === first)
+  const shown = mealItems.slice(0, 3)
+  const more = p.items.length - shown.length
+  const head = `${t(first)}: ${shown.map(i => `${shortName(i.name)} ${n(i.grams)} ${t('g')}`).join(', ')}${more > 0 ? `, ${t('planRowMore', { n: more })}` : ''}`
+  const kcal = n(Math.round(p.eaten.kcal + p.plan.kcal))
+  const sub = p.goal.p != null
+    ? t('planRowEnd', { p: n(Math.round(p.eaten.p + p.plan.p)), pg: n(p.goal.p), kcal, goal: n(p.goal.kcal) })
+    : t('planRowNoProtein', { kcal, goal: n(p.goal.kcal) })
+  return { head, sub }
+})
+
 async function onSaved() {
   closeEdit()
   await load(current.value, { quiet: true })
@@ -280,9 +312,17 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
           <div class="macros">
             <MacroBar v-for="m in macros" :key="m.key" :icon="m.icon" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" />
           </div>
+          <button v-if="planRow" type="button" class="planrow" :class="{ stale: dayPlan.busy.value }" :aria-label="`${t('planTitle')}. ${planRow.head}`" @click="planOpen = true">
+            <span class="pbadge" aria-hidden="true"><Icon name="sparkle" :size="15" /></span>
+            <span class="ptext">
+              <span class="phead">{{ planRow.head }}</span>
+              <span class="psub num">{{ planRow.sub }}</span>
+            </span>
+            <Icon name="right" :size="18" class="pchev" />
+          </button>
         </section>
 
-        <!-- order = priority: what's left → meals → secondary trackers → details (the day plan is the ✦ button) -->
+        <!-- order = priority: what's left (with the day plan row) → meals → secondary trackers → details -->
         <MealStrip :meals="day.meals" :goal="goal" @add="openAdd" @jump="jumpTo" />
 
         <WaterCard v-if="day.water" :water="day.water" :date="day.date" @change="onWater" />
@@ -298,9 +338,6 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
     <!-- room for the floating button so the last meal (Snack) is never under it -->
     <div class="fab-room" aria-hidden="true" />
     <div class="fabs">
-      <button v-if="rel === 0 && day" type="button" class="fab fab-plan" :aria-label="t('planTitle')" :title="t('planTitle')" @click="planOpen = true">
-        <Icon name="sparkle" :size="26" />
-      </button>
       <button type="button" class="fab" @click="openAdd()">
         <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
       </button>
@@ -352,6 +389,21 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .stats dd { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-regular); letter-spacing: -0.01em; }
 .estpct { margin: 0; font-size: var(--fs-xs); color: var(--estimate); font-weight: var(--fw-regular); }
 .macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); }
+/* day plan: a hairline row at the foot of the calorie card, full card width */
+.planrow {
+  display: flex; align-items: center; gap: var(--s-3); width: auto; text-align: left;
+  margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-5)) calc(-1 * var(--s-5)); padding: var(--s-3) var(--s-4) var(--s-3) var(--s-5);
+  border: 0; border-top: var(--hair) solid var(--line); border-radius: 0 0 var(--r-lg) var(--r-lg); background: transparent; color: var(--ink);
+  transition: opacity var(--dur), background var(--dur-fast);
+}
+.planrow:active { background: var(--surface-2); }
+.planrow.stale { opacity: .6; }
+.pbadge { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-soft-ink); }
+.pbadge :deep(svg) { fill: currentColor; stroke-width: 1.6; }
+.ptext { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.phead { font-size: var(--fs-sm); font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.psub { font-size: var(--fs-xs); color: var(--ink-3); }
+.pchev { flex: none; color: var(--ink-3); }
 
 .errcard { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
 .loaderr { color: var(--danger); font-size: var(--fs-sm); }
@@ -369,9 +421,6 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
   transition: transform var(--dur-fast);
 }
 .fab:active { transform: scale(.97); }
-/* ✦ "fill the rest of the day": same height, round, softer so "Add food" stays the main action */
-.fab-plan { width: 52px; padding: 0; justify-content: center; background: var(--plan); color: var(--plan-ink); }
-.fab-plan :deep(svg) { fill: currentColor; stroke-width: 1.8; }
 /* FAB is 52px tall at tabbar + 16px; the layout already pads tabbar + 32px, so 52px more leaves a 16px gap */
 .fab-room { height: 52px; }
 @media (max-width: 359px) { .hero-top { gap: var(--s-3); } .stats dd { font-size: var(--fs-lg); } }
