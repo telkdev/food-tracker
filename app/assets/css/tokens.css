@@ -70,9 +70,6 @@
   --danger: #b3261e;
   --protein: #a35d84;
   --fat: #a07c2e;
-  /* ✦ day plan button: violet, so it stands apart from the green Add food */
-  --plan: #6a4fc4;
-  --plan-ink: #ffffff;
   --carbs: #4f80ad;
   --fiber: #4f7f3f;   /* nutrient icons + bars (Figma "Food Tracker · Nutrient icons") */
   --sugar: #b25d6e;
@@ -117,8 +114,6 @@
     --danger: #ff8a80;
     --protein: #d494b8;
     --fat: #d9b56a;
-    --plan: #b8a2ff;
-    --plan-ink: #1b1236;
     --carbs: #8ab4de;
     --fiber: #9fcc86;
     --sugar: #e79aa8;

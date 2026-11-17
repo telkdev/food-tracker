@@ -1,57 +1,42 @@
 <script setup lang="ts">
-import type { Day, Entry, Meal, Per100 } from '~/utils/types'
+import type { Day, Entry, Meal } from '~/utils/types'
 import { errMsg } from '~/utils/format'
+import type { PlanFrom, PlanItem } from '~/composables/useDayPlan'
 
-// "Fill the rest of the day": portions that close what's left (protein and carbs first), opened from the ✦
-// button next to "Add food". Nothing is logged until he taps + or "Log all". While open, it recalculates
-// whenever the day changes (an entry added, edited or deleted here or from a Claude chat).
-type From = 'recent' | 'history' | 'products' | 'staple'
-interface PlanItem { key: string, name: string, product_id: string | null, per100: Per100, source: string, grams: number, meal: Meal, kcal: number, p: number, f: number, c: number, from: From }
-interface Plan {
-  goal: { kcal: number, p: number | null, f: number | null, c: number | null }
-  eaten: { kcal: number, p: number, f: number, c: number }
-  left_now: { kcal: number, p: number | null, f: number | null, c: number | null }
-  items: PlanItem[]
-  plan: { kcal: number, p: number, f: number, c: number }
-  left_after: { kcal: number, p: number | null, f: number | null, c: number | null }
-  gaps: string[]
-}
-
+// "Fill the rest of the day": whole meals he ate before, sized to what is left, plus a top-up. Opened from the
+// row on the calorie card. Nothing is logged until he taps + or "Log all". The plan itself lives in useDayPlan
+// (shared with that row) and is recalculated by the page whenever the day changes.
 const props = defineProps<{ open: boolean, date: string, day: Day }>()
 const emit = defineEmits<{ close: [], added: [Day, Entry[], string] }>()
 const { t, n } = useT()
 const toast = useToast()
+const { plan, busy: fetching, fetchPlan, dontHave: drop, another: next } = useDayPlan()
+const logging = ref(false)
+const busy = computed(() => fetching.value || logging.value)
 
-const plan = ref<Plan | null>(null)
-const busy = ref(false)
-/** foods he said he doesn't have: sent as both group key and name, so a food logged with and without a product goes too */
-const gone = ref<{ key: string, name: string }[]>([])
+watch(() => props.open, (o) => { if (o && !plan.value) fetchPlan().catch(e => toast.show(errMsg(e, t('somethingWrong')))) })
 
-async function fetchPlan() {
-  busy.value = true
-  try {
-    const exclude = gone.value.flatMap(g => [g.key, g.name.slice(0, 100)])
-    plan.value = await $fetch<Plan>('/api/plan', { query: exclude.length ? { exclude } : {} })
+const dontHave = (i: PlanItem) => drop(i).catch(e => toast.show(errMsg(e, t('somethingWrong'))))
+const another = () => next().catch(e => toast.show(errMsg(e, t('somethingWrong'))))
+
+/** items by meal, each meal with "like on 13.11" when it is a meal he ate before */
+const groups = computed(() => {
+  const out: { key: string, meal: Meal, asOn?: string, topUp: boolean, items: PlanItem[] }[] = []
+  const items = plan.value?.items ?? []
+  for (const i of items) {
+    // a past meal and the single foods added to the same meal are shown apart: "Ужин · как 16.11", "Ужин · добавка"
+    const key = `${i.meal}|${i.as_on ?? ''}`
+    let g = out.find(x => x.key === key)
+    if (!g) out.push(g = { key, meal: i.meal, asOn: i.as_on, topUp: !i.as_on && items.some(x => x.meal === i.meal && x.as_on), items: [] })
+    g.items.push(i)
   }
-  catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
-  finally { busy.value = false }
-}
-
-watch(() => props.open, (o) => {
-  if (o) fetchPlan()
-  else { plan.value = null; gone.value = [] }
-}, { immediate: true })
-
-function dontHave(i: PlanItem) {
-  gone.value.push({ key: i.key, name: i.name })
-  // drop it right away so the tap feels instant, then refill with a replacement
-  if (plan.value) plan.value = { ...plan.value, items: plan.value.items.filter(x => x.key !== i.key) }
-  fetchPlan()
-}
+  return out
+})
+const ddmm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`
 
 async function log(items: PlanItem[]) {
   if (!items.length) return
-  busy.value = true
+  logging.value = true
   try {
     const byMeal = new Map<Meal, PlanItem[]>()
     for (const i of items) byMeal.set(i.meal, [...(byMeal.get(i.meal) ?? []), i])
@@ -75,22 +60,8 @@ async function log(items: PlanItem[]) {
     if (items.length === plan.value?.items.length) emit('close')
   }
   catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
-  finally { busy.value = false }
+  finally { logging.value = false }
 }
-
-// any change to the day (added, edited, deleted, here or from a chat) → recalculate the open plan
-const stamp = computed(() => {
-  const tt = props.day.totals
-  const count = Object.values(props.day.meals).reduce((a, m) => a + m.entries.length, 0)
-  return `${count}|${tt.kcal}|${tt.p}|${tt.f}|${tt.c}`
-})
-let timer: ReturnType<typeof setTimeout> | undefined
-watch(stamp, () => {
-  if (!props.open) return
-  clearTimeout(timer)
-  timer = setTimeout(fetchPlan, 250)
-})
-onBeforeUnmount(() => clearTimeout(timer))
 
 // "now → after the plan" for each number, so the effect of tapping + is visible
 const rows = computed(() => {
@@ -114,7 +85,7 @@ const proteinShort = computed(() => {
   return p != null && p > 10 ? Math.round(p) : 0
 })
 const fatFull = computed(() => (plan.value?.left_now.f ?? 1) <= 0)
-const fromLabel = (f: From) => f === 'history' ? t('planFromHistory') : f === 'products' ? t('planFromProducts') : f === 'staple' ? t('planFromStaple') : ''
+const fromLabel = (f: PlanFrom) => f === 'history' ? t('planFromHistory') : f === 'products' ? t('planFromProducts') : f === 'staple' ? t('planFromStaple') : ''
 </script>
 
 <template>
@@ -133,16 +104,24 @@ const fromLabel = (f: From) => f === 'history' ? t('planFromHistory') : f === 'p
       <p v-if="!plan && busy" class="hint">{{ t('planLoading') }}</p>
       <template v-else-if="plan">
         <p v-if="!plan.items.length" class="hint">{{ plan.left_now.kcal <= 50 ? t('planNothingLeft') : t('planEmpty') }}</p>
-        <ul v-else class="items card" :class="{ stale: busy }">
-          <li v-for="i in plan.items" :key="i.key" class="item">
-            <button type="button" class="icon-btn gone" :aria-label="t('planGone', { name: i.name })" :title="t('planGone', { name: i.name })" :disabled="busy" @click="dontHave(i)"><Icon name="close" :size="16" /></button>
-            <div class="it">
-              <span class="name">{{ i.name }}<span v-if="i.from !== 'recent'" class="tag">{{ fromLabel(i.from) }}</span></span>
-              <span class="sub num">{{ t(i.meal) }} · <b>{{ n(i.grams) }} {{ t('g') }}</b> · {{ n(Math.round(i.kcal)) }} {{ t('kcal') }} · {{ t('proteinShort') }} {{ n(i.p) }} · {{ t('fatShort') }} {{ n(i.f) }} · {{ t('carbsShort') }} {{ n(i.c) }}</span>
-            </div>
-            <button type="button" class="add" :aria-label="t('planLogOne', { name: i.name })" :title="t('planLogOne', { name: i.name })" :disabled="busy" @click="log([i])"><Icon name="plus" :size="20" /></button>
-          </li>
-        </ul>
+        <div v-else class="groups" :class="{ stale: busy }">
+          <section v-for="g in groups" :key="g.key" class="group">
+            <h3 class="gtitle">{{ t(g.meal) }}<span v-if="g.asOn" class="ason"> · {{ t('planAsOn', { date: ddmm(g.asOn) }) }}</span><span v-else-if="g.topUp" class="ason"> · {{ t('planTopUp') }}</span></h3>
+            <ul class="items card">
+              <li v-for="i in g.items" :key="i.key" class="item">
+                <div class="it">
+                  <span class="name">{{ i.name }}<span v-if="i.from !== 'recent' && !i.as_on" class="tag">{{ fromLabel(i.from) }}</span></span>
+                  <span class="sub num"><b>{{ n(i.grams) }} {{ t('g') }}</b> · {{ n(Math.round(i.kcal)) }} {{ t('kcal') }} · {{ t('proteinShort') }} {{ n(i.p) }} · {{ t('fatShort') }} {{ n(i.f) }} · {{ t('carbsShort') }} {{ n(i.c) }}</span>
+                </div>
+                <!-- ✕ and + side by side on the right: one thumb, no reaching across the row -->
+                <div class="acts">
+                  <button type="button" class="act gone" :aria-label="t('planGone', { name: i.name })" :title="t('planGone', { name: i.name })" :disabled="busy" @click="dontHave(i)"><Icon name="close" :size="18" /></button>
+                  <button type="button" class="act add" :aria-label="t('planLogOne', { name: i.name })" :title="t('planLogOne', { name: i.name })" :disabled="busy" @click="log([i])"><Icon name="plus" :size="20" /></button>
+                </div>
+              </li>
+            </ul>
+          </section>
+        </div>
 
         <div v-if="plan.items.length" class="foot">
           <p class="lbl">{{ t('planAfter') }}</p>
@@ -152,6 +131,7 @@ const fromLabel = (f: From) => f === 'history' ? t('planFromHistory') : f === 'p
               <dd><span class="was">{{ n(r.now) }}</span> → <b>{{ n(r.v) }}</b><template v-if="r.goal != null"><span class="of">/{{ n(r.goal) }}</span></template></dd>
             </div>
           </dl>
+          <button v-if="plan.variants > 1" type="button" class="btn another" :disabled="busy" @click="another"><Icon name="refresh" :size="16" />{{ t('planAnother') }} <span class="num of">{{ plan.variant + 1 }}/{{ plan.variants }}</span></button>
           <p v-if="proteinShort || fatFull" class="note">
             <template v-if="fatFull">{{ t('planFatFull') }} </template>
             <template v-if="proteinShort">{{ t('planProteinShort', { g: n(proteinShort) }) }}</template>
@@ -171,14 +151,17 @@ const fromLabel = (f: From) => f === 'history' ? t('planFromHistory') : f === 'p
 <style scoped>
 .head { display: flex; align-items: center; gap: var(--s-3); }
 .head h2 { flex: 1; font-size: var(--fs-lg); font-weight: var(--fw-bold); }
-.badge { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.badge { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-soft-ink); }
 .sheet { display: grid; gap: var(--s-3); padding-bottom: var(--s-2); }
 .how, .hint { font-size: var(--fs-sm); color: var(--ink-2); margin: 0; }
-.items { list-style: none; margin: 0; padding: 0; overflow: hidden; transition: opacity .15s; }
-.items.stale { opacity: .5; }
-.item { display: flex; align-items: center; gap: var(--s-1); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-1); }
+.groups { display: grid; gap: var(--s-4); transition: opacity .15s; }
+.groups.stale { opacity: .5; }
+.group { display: grid; gap: var(--s-2); }
+.gtitle { font-size: var(--fs-sm); font-weight: var(--fw-bold); margin: 0; }
+.ason { font-weight: var(--fw-regular); color: var(--ink-3); }
+.items { list-style: none; margin: 0; padding: 0; overflow: hidden; }
+.item { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-1) var(--s-2) var(--s-4); }
 .item + .item { border-top: 1px solid var(--line); }
-.gone { flex: none; color: var(--ink-3); }
 .it { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .name { font-weight: var(--fw-book); overflow-wrap: anywhere; }
 .tag {
@@ -187,11 +170,18 @@ const fromLabel = (f: From) => f === 'history' ? t('planFromHistory') : f === 'p
 }
 .sub { font-size: var(--fs-xs); color: var(--ink-3); }
 .sub b { color: var(--ink); font-weight: var(--fw-medium); }
-.add {
-  flex: none; width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-soft) 15.5px, transparent 16px); color: var(--accent-soft-ink);
+.acts { flex: none; display: flex; align-items: center; }
+.act {
+  width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; padding: 0; border-radius: 50%;
+  background: transparent; color: var(--ink-3);
 }
-.add:active { background: radial-gradient(circle, var(--accent) 15.5px, transparent 16px); color: var(--accent-ink); }
+/* the visible circle is 32px; the 44px box is the tap target */
+.act.gone { background: radial-gradient(circle, var(--surface-2) 15.5px, transparent 16px); color: var(--ink-2); }
+.act.add { background: radial-gradient(circle, var(--accent-soft) 15.5px, transparent 16px); color: var(--accent-soft-ink); }
+.act.add:active { background: radial-gradient(circle, var(--accent) 15.5px, transparent 16px); color: var(--accent-ink); }
+.act.gone:active { background: radial-gradient(circle, var(--surface-3) 15.5px, transparent 16px); }
+.another { justify-self: start; display: inline-flex; align-items: center; gap: var(--s-2); }
+.another .of { color: var(--ink-3); font-size: var(--fs-xs); }
 .foot { display: grid; gap: var(--s-2); }
 .foot .lbl { font-size: var(--fs-xs); color: var(--ink-2); margin: 0; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-4); margin: 0; }

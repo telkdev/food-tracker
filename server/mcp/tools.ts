@@ -239,22 +239,23 @@ export function buildMcpServer(uid: string) {
   server.registerTool('suggest_day_plan', {
     title: 'Suggest the rest of today',
     description: [
-      'Read-only. Suggests portions for the rest of today. Prefers foods he logged today and in the last `days` days (default 2); when those cannot reach protein or carbs it also uses foods from the last 3 weeks, his saved products and a few common lean staples. Each item has `from` (recent | history | products | staple): mention when something is not from the last days, he may need to buy it.',
-      'Fits what is left of the kcal goal, reaches protein, keeps fat under its limit and roughly fits carbs; uses his usual portions (at most twice) and puts each food into a meal still ahead.',
-      'Returns left_now (before the plan), items (meal, name, g, kcal, p, f, c, product_id or per100+source for log_food), plan totals, left_after (what is still open after it; negative = over) and gaps (what the plan could not fix, tell him briefly).',
+      'Read-only. Plans the rest of today from meals he actually ate before: for each main meal still ahead (by what is logged and the clock) it picks one past meal (the foods he logged together that day), sized to what is left, then adds at most two single foods (usually protein) to close the gap. Sweets and fast food are never planned; foods he already had today in a full portion are not repeated.',
+      'Items with `as_on` (a date) belong to that past meal: present them together, e.g. "ужин как 16.11: гуляш 330 г, хлеб 105 г". Each item has `from` (recent | history | products | staple): a staple or product is something he may need to buy, say so.',
+      'Returns left_now (before the plan), items (meal, name, g, kcal, p, f, c, as_on, product_id or per100+source for log_food), plan totals, left_after (what is still open after it; negative = over), gaps (what the plan could not fix, tell him briefly) and variant/variants: call again with variant+1 when he wants another option.',
       'Nothing is logged: present it, ask him, and log with log_food only what he accepts. exclude: foods he says are gone (part of the name or a product id).',
     ].join(' '),
     inputSchema: {
       days: z.number().int().min(1).max(3).optional().describe('how many past days to take foods from, besides today; default 2'),
       exclude: z.array(z.string()).optional().describe('foods he no longer has: part of the name or product_id'),
+      variant: z.number().int().min(0).max(50).optional().describe('0 = best plan (default); 1, 2… = the next distinct plans, for "something else"'),
     },
     annotations: { readOnlyHint: true },
-  }, tool('suggest_day_plan', async (args: { days?: number, exclude?: string[] }) => {
+  }, tool('suggest_day_plan', async (args: { days?: number, exclude?: string[], variant?: number }) => {
     const r = await suggestDayPlan(uid, parseOr400(suggestPlanSchema, args))
     return {
       date: r.date, goal: r.goal, eaten: r.eaten, left_now: r.left_now, meals_ahead: r.meals_ahead,
-      items: r.items.map(i => ({ meal: i.meal, name: i.name, from: i.from, g: i.grams, kcal: Math.round(i.kcal), p: i.p, f: i.f, c: i.c, ...(i.product_id ? { product_id: i.product_id } : { per100: i.per100, source: i.source }) })),
-      plan: r.plan, left_after: r.left_after,
+      items: r.items.map(i => ({ meal: i.meal, name: i.name, from: i.from, ...(i.as_on ? { as_on: i.as_on } : {}), g: i.grams, kcal: Math.round(i.kcal), p: i.p, f: i.f, c: i.c, ...(i.product_id ? { product_id: i.product_id } : { per100: i.per100, source: i.source }) })),
+      plan: r.plan, left_after: r.left_after, variant: r.variant, variants: r.variants,
       ...(r.gaps.length ? { gaps: r.gaps } : {}),
       ...(r.candidates ? {} : { note: `no foods logged since ${r.from}` }),
     }
