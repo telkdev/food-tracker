@@ -2,10 +2,11 @@
 import type { Day, Entry, Meal, Per100 } from '~/utils/types'
 import { errMsg } from '~/utils/format'
 
-// "Rest of the day": portions of recently eaten foods that fit what's left. Fetched only on tap;
-// nothing is logged until he taps + or "Log all". While open, it recalculates whenever the day
-// changes (an entry added, edited or deleted here or from a Claude chat).
-interface PlanItem { key: string, name: string, product_id: string | null, per100: Per100, source: string, grams: number, meal: Meal, kcal: number, p: number, f: number, c: number }
+// "Fill the rest of the day": portions that close what's left (protein and carbs first), opened from the ✦
+// button next to "Add food". Nothing is logged until he taps + or "Log all". While open, it recalculates
+// whenever the day changes (an entry added, edited or deleted here or from a Claude chat).
+type From = 'recent' | 'history' | 'products' | 'staple'
+interface PlanItem { key: string, name: string, product_id: string | null, per100: Per100, source: string, grams: number, meal: Meal, kcal: number, p: number, f: number, c: number, from: From }
 interface Plan {
   goal: { kcal: number, p: number | null, f: number | null, c: number | null }
   eaten: { kcal: number, p: number, f: number, c: number }
@@ -16,20 +17,15 @@ interface Plan {
   gaps: string[]
 }
 
-const props = defineProps<{ date: string, day: Day }>()
-const emit = defineEmits<{ added: [Day, Entry[], string] }>()
+const props = defineProps<{ open: boolean, date: string, day: Day }>()
+const emit = defineEmits<{ close: [], added: [Day, Entry[], string] }>()
 const { t, n } = useT()
 const toast = useToast()
 
 const plan = ref<Plan | null>(null)
-const open = ref(false)
 const busy = ref(false)
 /** foods he said he doesn't have: sent as both group key and name, so a food logged with and without a product goes too */
 const gone = ref<{ key: string, name: string }[]>([])
-
-// what is left right now, from the diary itself (shown before the first tap)
-const leftKcal = computed(() => Math.round(props.day.goal.kcal - props.day.totals.kcal))
-const leftP = computed(() => props.day.goal.p == null ? null : Math.round(props.day.goal.p - props.day.totals.p))
 
 async function fetchPlan() {
   busy.value = true
@@ -41,15 +37,10 @@ async function fetchPlan() {
   finally { busy.value = false }
 }
 
-function openPlan() {
-  open.value = true
-  fetchPlan()
-}
-function close() {
-  open.value = false
-  plan.value = null
-  gone.value = []
-}
+watch(() => props.open, (o) => {
+  if (o) fetchPlan()
+  else { plan.value = null; gone.value = [] }
+}, { immediate: true })
 
 function dontHave(i: PlanItem) {
   gone.value.push({ key: i.key, name: i.name })
@@ -81,7 +72,7 @@ async function log(items: PlanItem[]) {
     }
     emit('added', day!, created, items.length === 1 ? items[0]!.name : t('planLogged'))
     // the whole plan is in the diary now: nothing left to suggest
-    if (items.length === plan.value?.items.length) close()
+    if (items.length === plan.value?.items.length) emit('close')
   }
   catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
   finally { busy.value = false }
@@ -95,7 +86,7 @@ const stamp = computed(() => {
 })
 let timer: ReturnType<typeof setTimeout> | undefined
 watch(stamp, () => {
-  if (!open.value) return
+  if (!props.open) return
   clearTimeout(timer)
   timer = setTimeout(fetchPlan, 250)
 })
@@ -115,7 +106,7 @@ const rows = computed(() => {
   ].map(r => ({
     ...r,
     bad: r.goal != null && r.cap && r.v > r.goal + r.tol,
-    short: r.goal != null && !r.cap && r.k === 'p' && r.v < r.goal - 10,
+    ok: r.goal != null && !r.cap && r.v >= r.goal - 10,
   }))
 })
 const proteinShort = computed(() => {
@@ -123,39 +114,30 @@ const proteinShort = computed(() => {
   return p != null && p > 10 ? Math.round(p) : 0
 })
 const fatFull = computed(() => (plan.value?.left_now.f ?? 1) <= 0)
+const fromLabel = (f: From) => f === 'history' ? t('planFromHistory') : f === 'products' ? t('planFromProducts') : f === 'staple' ? t('planFromStaple') : ''
 </script>
 
 <template>
-  <section class="plan card" :class="{ open }" :aria-label="t('planTitle')">
-    <!-- closed: one big tappable row with what's left, so it's clear what it will do -->
-    <button v-if="!open" type="button" class="cta" @click="openPlan">
-      <span class="badge" aria-hidden="true"><Icon name="sparkle" :size="22" /></span>
-      <span class="ct">
-        <span class="title">{{ t('planTitle') }}</span>
-        <span class="hint num">
-          <template v-if="leftKcal > 50">{{ t('planLeftNow', { kcal: n(leftKcal) }) }}<template v-if="leftP != null && leftP > 0"> · {{ t('proteinShort') }} {{ n(leftP) }} {{ t('g') }}</template> · {{ t('planHint') }}</template>
-          <template v-else>{{ t('planNothingLeft') }}</template>
-        </span>
-      </span>
-      <Icon name="right" :size="20" class="chev" />
-    </button>
-
-    <template v-else>
-      <header class="ph">
-        <span class="badge sm" aria-hidden="true"><Icon name="sparkle" :size="18" /></span>
+  <BottomSheet :open="open" :label="t('planTitle')" tall @close="emit('close')">
+    <template #header>
+      <div class="head">
+        <span class="badge" aria-hidden="true"><Icon name="sparkle" :size="18" /></span>
         <h2>{{ t('planTitle') }}</h2>
-        <button type="button" class="icon-btn" :aria-label="t('planHide')" @click="close"><Icon name="close" :size="20" /></button>
-      </header>
+        <button type="button" class="icon-btn" :aria-label="t('close')" @click="emit('close')"><Icon name="close" /></button>
+      </div>
+    </template>
+
+    <div class="sheet">
       <p class="how">{{ t('planHow') }}</p>
 
-      <p v-if="!plan && busy" class="hint pad">{{ t('planLoading') }}</p>
+      <p v-if="!plan && busy" class="hint">{{ t('planLoading') }}</p>
       <template v-else-if="plan">
-        <p v-if="!plan.items.length" class="hint pad">{{ plan.left_now.kcal <= 50 ? t('planNothingLeft') : t('planEmpty') }}</p>
-        <ul v-else class="items" :class="{ stale: busy }">
+        <p v-if="!plan.items.length" class="hint">{{ plan.left_now.kcal <= 50 ? t('planNothingLeft') : t('planEmpty') }}</p>
+        <ul v-else class="items card" :class="{ stale: busy }">
           <li v-for="i in plan.items" :key="i.key" class="item">
             <button type="button" class="icon-btn gone" :aria-label="t('planGone', { name: i.name })" :title="t('planGone', { name: i.name })" :disabled="busy" @click="dontHave(i)"><Icon name="close" :size="16" /></button>
             <div class="it">
-              <span class="name">{{ i.name }}</span>
+              <span class="name">{{ i.name }}<span v-if="i.from !== 'recent'" class="tag">{{ fromLabel(i.from) }}</span></span>
               <span class="sub num">{{ t(i.meal) }} · <b>{{ n(i.grams) }} {{ t('g') }}</b> · {{ n(Math.round(i.kcal)) }} {{ t('kcal') }} · {{ t('proteinShort') }} {{ n(i.p) }} · {{ t('fatShort') }} {{ n(i.f) }} · {{ t('carbsShort') }} {{ n(i.c) }}</span>
             </div>
             <button type="button" class="add" :aria-label="t('planLogOne', { name: i.name })" :title="t('planLogOne', { name: i.name })" :disabled="busy" @click="log([i])"><Icon name="plus" :size="20" /></button>
@@ -165,7 +147,7 @@ const fatFull = computed(() => (plan.value?.left_now.f ?? 1) <= 0)
         <div v-if="plan.items.length" class="foot">
           <p class="lbl">{{ t('planAfter') }}</p>
           <dl class="grid num">
-            <div v-for="r in rows" :key="r.k" :class="{ bad: r.bad, short: r.short }">
+            <div v-for="r in rows" :key="r.k" :class="{ bad: r.bad, ok: r.ok }">
               <dt>{{ r.label }}</dt>
               <dd><span class="was">{{ n(r.now) }}</span> → <b>{{ n(r.v) }}</b><template v-if="r.goal != null"><span class="of">/{{ n(r.goal) }}</span></template></dd>
             </div>
@@ -174,42 +156,35 @@ const fatFull = computed(() => (plan.value?.left_now.f ?? 1) <= 0)
             <template v-if="fatFull">{{ t('planFatFull') }} </template>
             <template v-if="proteinShort">{{ t('planProteinShort', { g: n(proteinShort) }) }}</template>
           </p>
-          <button type="button" class="btn btn-primary all" :disabled="busy" @click="log(plan.items)">
-            {{ plan.items.length > 1 ? t('planLogAll') : t('planLogOne', { name: plan.items[0]!.name }) }}
-          </button>
         </div>
       </template>
+    </div>
+
+    <template v-if="plan?.items.length" #footer>
+      <button type="button" class="btn btn-primary btn-lg btn-block" :disabled="busy" @click="log(plan.items)">
+        {{ plan.items.length > 1 ? t('planLogAll') : t('planLogOne', { name: plan.items[0]!.name }) }}
+      </button>
     </template>
-  </section>
+  </BottomSheet>
 </template>
 
 <style scoped>
-.plan { overflow: hidden; }
-.cta {
-  width: 100%; display: flex; align-items: center; gap: var(--s-3); text-align: left; border: 0; background: none; color: inherit;
-  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4); min-height: 64px; cursor: pointer; font: inherit;
-}
-.cta:active { background: var(--accent-soft); }
-.badge {
-  flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--accent); color: var(--accent-ink);
-}
-.badge.sm { width: 30px; height: 30px; }
-.ct { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.title { font-size: var(--fs-md); font-weight: var(--fw-bold); }
-.hint { font-size: var(--fs-xs); color: var(--ink-2); }
-.chev { flex: none; color: var(--ink-3); }
-.ph { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) 0 var(--s-4); min-height: 52px; }
-.ph h2 { flex: 1; font-size: var(--fs-md); font-weight: var(--fw-bold); }
-.how { font-size: var(--fs-xs); color: var(--ink-2); padding: 0 var(--s-4) var(--s-3); margin: 0; }
-.pad { padding: 0 var(--s-4) var(--s-4); }
-.items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); transition: opacity .15s; }
+.head { display: flex; align-items: center; gap: var(--s-3); }
+.head h2 { flex: 1; font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.badge { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.sheet { display: grid; gap: var(--s-3); padding-bottom: var(--s-2); }
+.how, .hint { font-size: var(--fs-sm); color: var(--ink-2); margin: 0; }
+.items { list-style: none; margin: 0; padding: 0; overflow: hidden; transition: opacity .15s; }
 .items.stale { opacity: .5; }
 .item { display: flex; align-items: center; gap: var(--s-1); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-1); }
 .item + .item { border-top: 1px solid var(--line); }
 .gone { flex: none; color: var(--ink-3); }
 .it { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .name { font-weight: var(--fw-book); overflow-wrap: anywhere; }
+.tag {
+  display: inline-block; margin-left: var(--s-2); padding: 0 6px; border-radius: var(--r-pill); vertical-align: 1px;
+  font-size: var(--fs-xs); font-weight: var(--fw-medium); background: var(--accent-soft); color: var(--accent-soft-ink); white-space: nowrap;
+}
 .sub { font-size: var(--fs-xs); color: var(--ink-3); }
 .sub b { color: var(--ink); font-weight: var(--fw-medium); }
 .add {
@@ -217,17 +192,15 @@ const fatFull = computed(() => (plan.value?.left_now.f ?? 1) <= 0)
   background: radial-gradient(circle, var(--accent-soft) 15.5px, transparent 16px); color: var(--accent-soft-ink);
 }
 .add:active { background: radial-gradient(circle, var(--accent) 15.5px, transparent 16px); color: var(--accent-ink); }
-.foot { border-top: 1px solid var(--line); padding: var(--s-3) var(--s-4) var(--s-4); display: grid; gap: var(--s-2); }
+.foot { display: grid; gap: var(--s-2); }
 .foot .lbl { font-size: var(--fs-xs); color: var(--ink-2); margin: 0; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2) var(--s-4); margin: 0; }
-.grid div { min-width: 0; }
-.grid div { display: flex; align-items: baseline; gap: var(--s-2); }
+.grid div { min-width: 0; display: flex; align-items: baseline; gap: var(--s-2); }
 .grid dt { font-size: var(--fs-xs); color: var(--ink-3); min-width: 2.2em; }
 .grid dd { margin: 0; font-size: var(--fs-sm); white-space: nowrap; }
 .grid .was { color: var(--ink-3); }
 .grid .of { color: var(--ink-3); font-size: var(--fs-xs); }
 .grid .bad b { color: var(--over); }
-.grid .short b { color: var(--ink-2); }
+.grid .ok b { color: var(--accent); }
 .note { font-size: var(--fs-xs); color: var(--ink-2); margin: 0; }
-.all { width: 100%; }
 </style>

@@ -71,7 +71,7 @@ export function buildMcpServer(uid: string) {
       'Ask for grams instead of guessing; a guess must be logged with source "estimate".',
       'When he states a lasting habit or corrects you ("I always weigh rice cooked", "my mug is 300 ml"), save it with set_preference.',
       'The server sleeps when idle and takes up to ~60 s to wake. If a call times out or fails with a connection or 5xx error, tell the user the diary is waking up, wait ~30 s and retry the same call, up to 3 times, before reporting a failure. Retrying a log is safe only if the failed call returned nothing: check get_day first so nothing is logged twice.',
-      'Day plan: on his first food log of the day, and again after a meal when what is left is unbalanced (e.g. little fat left but lots of protein, or kcal nearly used up with protein far short), call suggest_day_plan and offer the result in a few lines: what to eat for the rest of today from foods he already has, with grams, and how the day would end. Ask "Записать?" / "Log it?" and wait for a yes; never log a suggestion on your own. He may say some food is gone: call it again with exclude. After a yes, log each meal of the plan with log_food (product_id when given, otherwise the per100 and source from the plan), with any changes he asked for. Do not offer it again in the same conversation unless he asks or the balance changed after a new meal; if he declines, drop it.',
+      'Day plan: on his first food log of the day, and again after a meal when what is left is unbalanced (e.g. little fat left but lots of protein, or kcal nearly used up with protein far short), call suggest_day_plan and offer the result in a few lines: what to eat for the rest of today, mostly from foods he already has, with grams, and how the day would end. Ask "Записать?" / "Log it?" and wait for a yes; never log a suggestion on your own. He may say some food is gone: call it again with exclude. After a yes, log each meal of the plan with log_food (product_id when given, otherwise the per100 and source from the plan), with any changes he asked for. Do not offer it again in the same conversation unless he asks or the balance changed after a new meal; if he declines, drop it.',
     ].join(' ') },
   )
 
@@ -239,7 +239,7 @@ export function buildMcpServer(uid: string) {
   server.registerTool('suggest_day_plan', {
     title: 'Suggest the rest of today',
     description: [
-      'Read-only. Suggests portions for the rest of today, chosen only from foods he logged today and in the last `days` days (default 2), so they are things he likely still has.',
+      'Read-only. Suggests portions for the rest of today. Prefers foods he logged today and in the last `days` days (default 2); when those cannot reach protein or carbs it also uses foods from the last 3 weeks, his saved products and a few common lean staples. Each item has `from` (recent | history | products | staple): mention when something is not from the last days, he may need to buy it.',
       'Fits what is left of the kcal goal, reaches protein, keeps fat under its limit and roughly fits carbs; uses his usual portions (at most twice) and puts each food into a meal still ahead.',
       'Returns left_now (before the plan), items (meal, name, g, kcal, p, f, c, product_id or per100+source for log_food), plan totals, left_after (what is still open after it; negative = over) and gaps (what the plan could not fix, tell him briefly).',
       'Nothing is logged: present it, ask him, and log with log_food only what he accepts. exclude: foods he says are gone (part of the name or a product id).',
@@ -253,7 +253,7 @@ export function buildMcpServer(uid: string) {
     const r = await suggestDayPlan(uid, parseOr400(suggestPlanSchema, args))
     return {
       date: r.date, goal: r.goal, eaten: r.eaten, left_now: r.left_now, meals_ahead: r.meals_ahead,
-      items: r.items.map(i => ({ meal: i.meal, name: i.name, g: i.grams, kcal: Math.round(i.kcal), p: i.p, f: i.f, c: i.c, ...(i.product_id ? { product_id: i.product_id } : { per100: i.per100, source: i.source }) })),
+      items: r.items.map(i => ({ meal: i.meal, name: i.name, from: i.from, g: i.grams, kcal: Math.round(i.kcal), p: i.p, f: i.f, c: i.c, ...(i.product_id ? { product_id: i.product_id } : { per100: i.per100, source: i.source }) })),
       plan: r.plan, left_after: r.left_after,
       ...(r.gaps.length ? { gaps: r.gaps } : {}),
       ...(r.candidates ? {} : { note: `no foods logged since ${r.from}` }),
