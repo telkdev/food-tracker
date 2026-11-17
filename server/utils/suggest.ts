@@ -16,6 +16,22 @@ const MAX_HISTORY = 30
 const MAX_PRODUCTS = 20
 
 /**
+ * Sweets and fast food: fine to finish if he has them (eaten in the last days), but never worth pulling
+ * back from older history or the product library to "fill" a plan (Vasyl, 2026-11-17).
+ */
+export const TREAT = new RegExp([
+  // sweets / pastry / desserts
+  'торт', 'пирожн', 'тирамис', 'чизкейк', 'эклер', 'круасс', 'кексы?', 'маффин', 'пончик', 'донат', 'вафл', 'печенье', 'печенья', 'печив', 'пряник',
+  'шоколад', 'конфет', 'цукерк', 'мороженое', 'морозиво', 'слойк', 'штрудел', 'шарлотк', 'пирог', 'пиріг', 'пирож', 'булоч', 'сдоб',
+  'зефир', 'зефір', 'мармелад', 'халв', 'варень', 'джем', 'нутелл', 'nutella', 'сырок', 'сирок', 'десерт',
+  'ciast', 'tort(?!il)', 'czekolad', 'cukier', 'lody', 'pączek', 'drożdżów', 'wafel', 'cake', 'cookie', 'chocolate', 'candy', 'dessert', 'donut', 'brownie', 'croissant', 'tiramisu', 'cheesecake',
+  // fast food / snacks
+  'пицц', 'піц', 'pizza', 'бургер', 'burger', 'шаурм', 'шаверм', 'kebab', 'кебаб', 'хот-?дог', 'hot ?dog', 'наггетс', 'nugget', 'картофель фри', 'картопля фрі', 'frytk', 'fries',
+  'чипс', 'chips', 'crisps', 'попкорн', 'popcorn', 'сухарик', 'кола', 'cola', 'pepsi', 'энергетик', 'енергетик',
+].join('|'), 'i')
+const isTreat = (name: string, sugar100?: number | null) => TREAT.test(name.toLowerCase()) || (sugar100 != null && sugar100 >= 25)
+
+/**
  * Common lean foods, last resort when his own foods can't reach protein or carbs (tier 3). Per 100 g,
  * as eaten (cooked where it matters). Kept short on purpose: things most kitchens or the shop next door have.
  */
@@ -87,6 +103,8 @@ export async function suggestDayPlan(uid: string, input: SuggestPlanInput = {}) 
     const name = last.name
     // by group key / product id, or by name (catches the same food logged both with and without a product)
     if (isGone(key, name)) continue
+    // older sweets / fast food stay out; recent ones he may still have, so they can be finished
+    if (!recent && isTreat(name, prod?.sugar100 ?? last.sugar100)) continue
     // oil, butter, lard: something you add to a dish, not a food to plan
     if (per100.f >= 70) { skipped.push(name); continue }
     const typical = Math.round(median(list.map(r => r.grams)))
@@ -102,7 +120,7 @@ export async function suggestDayPlan(uid: string, input: SuggestPlanInput = {}) 
   const seen = new Set(candidates.map(c => loose(c.name)))
   const lib = await useDb().select().from(schema.products).where(eq(schema.products.userId, uid))
   const extra = lib
-    .filter(p => !groups.has(p.id) && p.kcal100 >= 20 && p.f100 < 70 && !seen.has(loose(p.name)) && !isGone(p.id, p.name))
+    .filter(p => !groups.has(p.id) && p.kcal100 >= 20 && p.f100 < 70 && !seen.has(loose(p.name)) && !isGone(p.id, p.name) && !isTreat(p.name, p.sugar100))
     .sort((a, b) => (b.p100 + b.c100 * 0.3) / Math.max(b.kcal100, 1) - (a.p100 + a.c100 * 0.3) / Math.max(a.kcal100, 1))
     .slice(0, MAX_PRODUCTS)
   for (const p of extra) {
