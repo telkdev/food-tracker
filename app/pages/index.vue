@@ -202,6 +202,8 @@ watch(planStamp, (s) => {
 }, { immediate: true })
 onBeforeUnmount(() => clearTimeout(planTimer))
 /** "Ужин: гуляш 330 г, хлеб 105 г, ещё 2" and how the day ends; hidden when there's nothing worth planning */
+/** room for the row is kept from the first paint whenever a plan is likely (today, 150+ kcal left), so the card doesn't jump */
+const planExpected = computed(() => rel.value === 0 && !!day.value && remaining.value >= 150)
 const planRow = computed(() => {
   const p = dayPlan.plan.value
   if (rel.value !== 0 || !p || p.date !== day.value?.date || !p.items.length || p.left_now.kcal < 150) return null
@@ -320,6 +322,11 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
             </span>
             <Icon name="right" :size="18" class="pchev" />
           </button>
+          <!-- same size as the row while the plan loads (or before the first fetch), so nothing below shifts -->
+          <div v-else-if="planExpected && (!dayPlan.plan.value || dayPlan.plan.value.date !== day.date)" class="planrow skel" aria-hidden="true">
+            <span class="pbadge"><Icon name="sparkle" :size="15" /></span>
+            <span class="ptext"><span class="bar w80" /><span class="bar w55" /><span class="bar w40 thin" /></span>
+          </div>
         </section>
 
         <!-- order = priority: what's left (with the day plan row) → meals → secondary trackers → details -->
@@ -401,7 +408,16 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 .pbadge { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-soft-ink); }
 .pbadge :deep(svg) { fill: currentColor; stroke-width: 1.6; }
 .ptext { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.phead { font-size: var(--fs-sm); font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* always two lines tall (short plans too), so the row, its skeleton and every plan have one height */
+.phead { font-size: var(--fs-sm); line-height: 1.35; min-height: calc(2 * 1.35em); font-weight: var(--fw-medium); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.psub { line-height: 1.35; }
+.skel .ptext { gap: 0; }
+.skel .bar { display: block; height: calc(var(--fs-sm) * 1.35); background: linear-gradient(var(--surface-2), var(--surface-2)) center / 100% 9px no-repeat; border-radius: var(--r-pill); }
+.skel .bar.thin { height: calc(var(--fs-xs) * 1.35 + 2px); background-size: 100% 7px; }
+.skel .w80 { width: 80%; } .skel .w55 { width: 55%; } .skel .w40 { width: 40%; }
+.skel .pbadge { opacity: .5; }
+@media (prefers-reduced-motion: no-preference) { .skel .bar { animation: pulse 1.2s ease-in-out infinite alternate; } }
+@keyframes pulse { from { opacity: .55; } to { opacity: 1; } }
 .psub { font-size: var(--fs-xs); color: var(--ink-3); }
 .pchev { flex: none; color: var(--ink-3); }
 
