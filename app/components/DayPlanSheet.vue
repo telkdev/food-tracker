@@ -116,7 +116,7 @@ const fromLabel = (f: PlanFrom) => f === 'history' ? t('planFromHistory') : f ==
                 <!-- ✕ and + side by side on the right: one thumb, no reaching across the row -->
                 <div class="acts">
                   <button type="button" class="act gone" :aria-label="t('planGone', { name: i.name })" :title="t('planGone', { name: i.name })" :disabled="busy" @click="dontHave(i)"><Icon name="close" :size="18" /></button>
-                  <button type="button" class="act add" :aria-label="t('planLogOne', { name: i.name })" :title="t('planLogOne', { name: i.name })" :disabled="busy" @click="log([i])"><Icon name="plus" :size="20" /></button>
+                  <button type="button" class="act add" :aria-label="t('planLogOne', { name: i.name })" :title="t('planLogOne', { name: i.name })" :disabled="busy" @click="log([i])"><Icon name="plus" :size="22" /></button>
                 </div>
               </li>
             </ul>
@@ -170,16 +170,18 @@ const fromLabel = (f: PlanFrom) => f === 'history' ? t('planFromHistory') : f ==
 }
 .sub { font-size: var(--fs-xs); color: var(--ink-3); }
 .sub b { color: var(--ink); font-weight: var(--fw-medium); }
-.acts { flex: none; display: flex; align-items: center; }
+.acts { flex: none; display: flex; align-items: center; gap: 2px; }
 .act {
   width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; padding: 0; border-radius: 50%;
   background: transparent; color: var(--ink-3);
 }
 /* the visible circle is 32px; the 44px box is the tap target */
-.act.gone { background: radial-gradient(circle, var(--surface-2) 15.5px, transparent 16px); color: var(--ink-2); }
-.act.add { background: radial-gradient(circle, var(--accent-soft) 15.5px, transparent 16px); color: var(--accent-soft-ink); }
-.act.add:active { background: radial-gradient(circle, var(--accent) 15.5px, transparent 16px); color: var(--accent-ink); }
-.act.gone:active { background: radial-gradient(circle, var(--surface-3) 15.5px, transparent 16px); }
+/* ✕ is quiet (outline), + is the action: a solid green circle, bigger */
+.act.gone { color: var(--ink-3); background: radial-gradient(circle, transparent 15px, var(--line-strong) 15.5px, var(--line-strong) 16.5px, transparent 17px); }
+.act.gone:active { background: radial-gradient(circle, var(--surface-2) 16.5px, transparent 17px); }
+.act.add { color: var(--accent-ink); background: radial-gradient(circle, var(--accent) 18.5px, transparent 19px); }
+.act.add :deep(svg) { stroke-width: 2.4; }
+.act.add:active { background: radial-gradient(circle, var(--accent-hover) 18.5px, transparent 19px); }
 .another { justify-self: start; display: inline-flex; align-items: center; gap: var(--s-2); }
 .another .of { color: var(--ink-3); font-size: var(--fs-xs); }
 .foot { display: grid; gap: var(--s-2); }
