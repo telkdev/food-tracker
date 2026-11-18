@@ -130,6 +130,17 @@ describe('planDayV2 (whole past meals, then a top-up)', () => {
     expect(r.items.map(i => i.key)).not.toContain('cottage cheese')
   })
 
+  it('never adds two foods of the same kind (two brands of cottage cheese)', () => {
+    const lean = [
+      f('fish, baked', [105, 22, 1.8, 0], 180, 'dinner', { single: false }),
+      f('Twaróg chudy Bieluch', [86, 18, 0, 3.5], 250, 'snack', { max_g: 250 }),
+      f('Twaróg chudy Auchan', [86, 18, 0, 3.5], 100, 'snack', { max_g: 150 }),
+    ]
+    const fish: PlanCombo[] = [{ key: 'fish', date: '2026-11-09', meal: 'dinner', count: 1, tier: 1, parts: [{ key: 'fish, baked', grams: 180 }] }]
+    const r = planDayV2(lean, fish, { kcal: 500, p: 106, f: 6, c: 28 }, { ahead: ['dinner', 'snack'] })
+    expect(r.items.filter(i => i.name.startsWith('Twaróg')).length).toBeLessThanOrEqual(1)
+  })
+
   it('falls back to single foods when there are no past meals', () => {
     const r = planDayV2(recent, [], { kcal: 900, p: 80, f: 25, c: 90 }, { ahead: ['dinner', 'snack'] })
     expect(r.items.length).toBeGreaterThan(0)

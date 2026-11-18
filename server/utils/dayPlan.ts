@@ -118,7 +118,7 @@ export interface PlanResult {
   gaps: string[]
 }
 
-export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: { ahead?: PlanMeal[], maxItems?: number, maxMain?: number } = {}): PlanResult {
+export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: { ahead?: PlanMeal[], maxItems?: number, maxMain?: number, kindOf?: (c: PlanCandidate) => string } = {}): PlanResult {
   const ahead = opts.ahead?.length ? opts.ahead : PLAN_MEALS
   const maxItems = opts.maxItems ?? 7
   const costOf = (c: PlanCandidate) => TIER_COST[c.tier ?? 0]!
@@ -141,6 +141,8 @@ export function planDay(candidates: PlanCandidate[], target: PlanTarget, opts: {
         const cur = grams.get(c.key) ?? 0
         const g = cur + dg
         if (g < 0 || g > maxG(c)) return null
+        // one food of a kind per plan: not cottage cheese of two brands, one at dinner and one as a snack
+        if (cur === 0 && g > 0 && opts.kindOf && [...grams.keys()].some(k => k !== c.key && opts.kindOf!(byKey.get(k)!) === opts.kindOf!(c))) return null
         if (cur === 0 && g > 0) { n++; cost += costOf(c); if (c.usual_meal !== 'snack') mains++ }
         if (cur > 0 && g === 0) { n--; cost -= costOf(c); if (c.usual_meal !== 'snack') mains-- }
         const m = at(c.per100, dg)
@@ -232,6 +234,8 @@ export interface PlanV2Result extends PlanResult {
 }
 
 const SCALES = [0.5, 0.75, 1, 1.25, 1.5]
+/** what kind of food it is, for "not two of the same": the first word of the name ("twaróg", "куриная", "skyr") */
+export const kindOf = (c: { name: string }) => c.name.toLowerCase().split(/[\s,(]+/)[0]!
 const round5 = (g: number) => Math.max(5, Math.round(g / 5) * 5)
 const COMBO_TIER_COST = [0, 0.02, 0.04, 0.06]
 /** extra cost per single top-up food: a plan is meals first, additions only when they really help */
@@ -312,11 +316,11 @@ export function planDayV2(
       c: target.c == null ? null : target.c - st.m.c,
     }
     // and not the same kind of food under another brand (two cottage cheeses in one plan): first word of the name
-    const kind = (k: string) => byKey.get(k)!.name.toLowerCase().split(/[\s,(]+/)[0]
+    const kind = (k: string) => kindOf(byKey.get(k)!)
     const usedKinds = new Set([...used].map(kind))
     const pool = singles.filter(c => !used.has(c.key) && !usedKinds.has(kind(c.key)))
     // a little or nothing left: no top-ups, and no "kcal reached" gap from the inner planner
-    const top = left.kcal > 60 ? planDay(pool, left, { ahead: slots, maxItems: 2, maxMain: 1 }) : { items: [], plan: { kcal: 0, p: 0, f: 0, c: 0 }, left_after: left, gaps: [] }
+    const top = left.kcal > 60 ? planDay(pool, left, { ahead: slots, maxItems: 2, maxMain: 1, kindOf }) : { items: [], plan: { kcal: 0, p: 0, f: 0, c: 0 }, left_after: left, gaps: [] }
     const total = add(st.m, top.plan)
     const cost = st.cost + top.items.reduce((a, i) => a + SINGLE_COST + TIER_COST[TIER_FROM.indexOf(i.from)]!, 0)
     const sig = st.picks.map(p => p.combo.key).sort().join('|') || top.items.map(i => i.key).sort().join('|')
