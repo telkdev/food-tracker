@@ -125,6 +125,8 @@ export const settings = pgTable('settings', {
   profileDoneAt: timestamp('profile_done_at', { withTimezone: true }),
   // daily drinking goal in ml; null = suggested from the profile (shared/water.ts)
   waterGoalMl: integer('water_goal_ml'),
+  // Rating tab: others can see my day totals and foods. Default on (Vasyl's call); each user can turn it off.
+  showInRating: boolean('show_in_rating').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, t => [
   check('settings_kcal_goal_range', sql`${t.kcalGoal} between 800 and 8000`),

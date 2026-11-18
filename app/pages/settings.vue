@@ -39,6 +39,23 @@ async function save() {
   finally { busy.value = false }
 }
 
+// ---------- rating: show me to the others ----------
+const showInRating = ref(true)
+watch(data, (s) => { if (s) showInRating.value = s.showInRating !== false }, { immediate: true })
+const ratingBusy = ref(false)
+async function toggleRating() {
+  const next = !showInRating.value
+  ratingBusy.value = true
+  try {
+    await $fetch('/api/settings', { method: 'PATCH', body: { show_in_rating: next } })
+    showInRating.value = next
+    clearNuxtData('rating')
+    toast.show(t(next ? 'ratingSettingOn' : 'ratingSettingOff'))
+  }
+  catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
+  finally { ratingBusy.value = false }
+}
+
 // ---------- streak carried over from another app ----------
 const sc = reactive({ days: '', until: '' })
 watch(data, (s) => { if (s) Object.assign(sc, { days: s.streakCarryDays ? String(s.streakCarryDays) : '', until: s.streakCarryUntil ?? '' }) }, { immediate: true })
@@ -191,6 +208,15 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       <button type="submit" class="btn btn-primary btn-block" :disabled="busy || kcalBad || waterBad">{{ t('save') }}</button>
     </form>
 
+    <section id="rating" class="card group">
+      <h2 class="section-title">{{ t('ratingSettingTitle') }}</h2>
+      <div class="line">
+        <span id="rating-label" class="ll">{{ t('ratingSettingLabel') }}</span>
+        <button type="button" role="switch" class="switch" :aria-checked="showInRating" aria-labelledby="rating-label" :disabled="ratingBusy" @click="toggleRating"><span /></button>
+      </div>
+      <p class="hint">{{ t('ratingSettingHint') }}</p>
+    </section>
+
     <form class="card group" @submit.prevent="saveCarry">
       <h2 class="section-title">{{ t('streakTitle') }}</h2>
       <p class="hint">{{ t('streakNote') }}</p>
@@ -308,6 +334,11 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
 /* value text only: goal inputs (.input.num) keep --ink and --fs-input */
 .line > .num, p.num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--fs-sm); text-align: right; }
 .tool { min-height: 40px; }
+.switch { flex: none; position: relative; width: 48px; height: 28px; border-radius: var(--r-pill); border: 0; padding: 0; background: var(--surface-3); transition: background var(--dur-fast); }
+.switch span { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform var(--dur-fast) var(--ease); }
+.switch[aria-checked='true'] { background: var(--accent); }
+.switch[aria-checked='true'] span { transform: translateX(20px); }
+.switch:disabled { opacity: .6; }
 .pref { display: grid; gap: var(--s-2); }
 .pref + .pref { border-top: 1px solid var(--line); padding-top: var(--s-3); }
 .ph { display: flex; align-items: center; justify-content: space-between; }
