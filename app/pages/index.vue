@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Day, Entry, Meal, Pickable, Settings, Water } from '~/utils/types'
 import { MEALS } from '~/utils/types'
+import type { SourceKey } from '~/utils/sources'
 import { addDays, diffDays, errMsg, fmtDate, mealNow } from '~/utils/format'
 import { slavicPlural } from '~/utils/i18n'
 
@@ -121,9 +122,9 @@ const macros = computed(() => {
   const g = day.value?.goal
   const energy = tt.p * 4 + tt.f * 9 + tt.c * 4 || 1
   return [
-    { key: 'p', icon: 'protein', label: t('protein'), value: tt.p, goal: g?.p ?? null, color: 'var(--protein)', share: tt.p * 4 / energy },
-    { key: 'f', icon: 'fat', label: t('fat'), value: tt.f, goal: g?.f ?? null, color: 'var(--fat)', share: tt.f * 9 / energy },
-    { key: 'c', icon: 'carbs', label: t('carbs'), value: tt.c, goal: g?.c ?? null, color: 'var(--carbs)', share: tt.c * 4 / energy },
+    { key: 'p' as const, icon: 'protein', label: t('protein'), value: tt.p, goal: g?.p ?? null, color: 'var(--protein)', share: tt.p * 4 / energy },
+    { key: 'f' as const, icon: 'fat', label: t('fat'), value: tt.f, goal: g?.f ?? null, color: 'var(--fat)', share: tt.f * 9 / energy },
+    { key: 'c' as const, icon: 'carbs', label: t('carbs'), value: tt.c, goal: g?.c ?? null, color: 'var(--carbs)', share: tt.c * 4 / energy },
   ]
 })
 
@@ -184,6 +185,9 @@ const editingMeal = ref<Meal | null>(null)
 function openEdit(e: Entry, meal: Meal) { editing.value = e; editingMeal.value = meal }
 function closeEdit() { editing.value = null }
 const planOpen = ref(false)
+// tap a macro or fiber / sugar / salt → which foods it came from
+const sourceKey = ref<SourceKey | null>(null)
+watch(current, () => { sourceKey.value = null })
 
 // ---------- day plan: a row on the calorie card with the plan itself, tap → sheet ----------
 const dayPlan = useDayPlan()
@@ -312,7 +316,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
             </dl>
           </div>
           <div class="macros">
-            <MacroBar v-for="m in macros" :key="m.key" :icon="m.icon" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" />
+            <MacroBar v-for="m in macros" :key="m.key" :icon="m.icon" :label="m.label" :value="m.value" :goal="m.goal" :color="m.color" :energy-share="m.share" @open="sourceKey = m.key" />
           </div>
           <button v-if="planRow" type="button" class="planrow" :class="{ stale: dayPlan.busy.value }" :aria-label="`${t('planTitle')}. ${planRow.head}`" @click="planOpen = true">
             <span class="pbadge" aria-hidden="true"><Icon name="sparkle" :size="15" /></span>
@@ -334,7 +338,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 
         <WaterCard v-if="day.water" :water="day.water" :date="day.date" @change="onWater" />
 
-        <NutrientExtras v-if="day.extras && day.extras_goal" :extras="day.extras" :goal="day.extras_goal" :kcal="day.totals.kcal" />
+        <NutrientExtras v-if="day.extras && day.extras_goal" :extras="day.extras" :goal="day.extras_goal" :kcal="day.totals.kcal" @open="k => sourceKey = k" />
 
         <MealSection v-for="m in MEALS" :id="`sec-${m}`" :key="m" class="msec" :meal="m" :data="day.meals[m]" @add="openAdd" @open="openEdit" @save="saveUsual" />
 
@@ -351,6 +355,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
     </div>
 
     <AddFoodSheet :open="addOpen" :date="current" :meal="addMeal" :initial-pick="initialPick" @close="addOpen = false" @added="onAdded" />
+    <NutrientSourcesSheet v-if="day" :day="day" :nutrient="sourceKey" @close="sourceKey = null" />
     <DayPlanSheet v-if="day" :open="planOpen" :date="current" :day="day" @close="planOpen = false" @added="onAdded" />
     <EditEntrySheet :entry="editing" :meal="editingMeal" @close="closeEdit" @saved="onSaved" @delete="onDelete" />
   </div>

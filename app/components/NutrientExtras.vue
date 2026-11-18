@@ -7,6 +7,7 @@ import type { ExtraKey, Extras } from '~/utils/types'
  * coverage line says how much of the day's kcal the numbers are based on.
  */
 const props = defineProps<{ extras: Extras, goal: Record<ExtraKey, number>, kcal: number }>()
+const emit = defineEmits<{ open: [key: ExtraKey] }>()
 const { t, n } = useT()
 
 const rows = computed(() => (['fiber', 'sugar', 'salt'] as const).map((k) => {
@@ -43,7 +44,8 @@ function toggle() {
       <Icon name="right" :size="18" class="chev" />
     </button>
     <ul v-if="open" class="rows">
-      <li v-for="r in rows" :key="r.key" class="row">
+      <li v-for="r in rows" :key="r.key">
+        <button type="button" class="row" :aria-label="t('srcOpen', { name: t(r.key) })" @click="emit('open', r.key)">
         <Icon :name="r.key" :size="22" class="ico" :style="{ color: `var(--${r.key})` }" />
         <span class="lbl">
           {{ t(r.key) }}
@@ -52,7 +54,9 @@ function toggle() {
         <span class="val num" :class="{ over: r.over }">
           <b>{{ n(r.g, r.digits) }}</b><span class="of"> / <template v-if="r.limit">≤ </template>{{ n(r.goal) }} {{ t('g') }}</span>
         </span>
+        <Icon name="right" :size="16" class="go" />
         <span class="bar" :class="{ empty: none }"><span :style="{ width: `${r.frac * 100}%`, background: r.over ? 'var(--over)' : `var(--${r.key})` }" /></span>
+        </button>
       </li>
     </ul>
     <p v-if="open" class="note">
@@ -73,7 +77,14 @@ function toggle() {
 .chev { flex: none; color: var(--ink-3); transition: transform var(--dur-fast) var(--ease); }
 .open .chev { transform: rotate(90deg); }
 .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); }
-.row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-rows: auto 4px; column-gap: var(--s-3); row-gap: 6px; align-items: center; }
+.row {
+  width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 16px; grid-template-rows: auto 4px; column-gap: var(--s-3); row-gap: 6px; align-items: center;
+  margin: -6px -8px; padding: 6px 8px; box-sizing: content-box; border: 0; border-radius: var(--r-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: background var(--dur-fast) var(--ease);
+}
+.row:active { background: var(--surface-2); }
+@media (hover: hover) { .row:hover { background: var(--surface-2); } }
+.go { color: var(--ink-3); opacity: .7; }
 .ico { grid-row: 1; }
 .lbl { font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--ink); display: grid; line-height: 1.25; min-width: 0; }
 .sub { font-size: var(--fs-2xs); color: var(--ink-3); }
@@ -81,7 +92,7 @@ function toggle() {
 .val b { font-size: var(--fs-md); font-weight: var(--fw-medium); }
 .val.over b { color: var(--over); }
 .of { color: var(--ink-3); }
-.bar { grid-column: 2 / -1; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.bar { grid-column: 2 / -2; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: 2px; transition: width var(--dur-slow) var(--ease); }
 .note { margin: 0; font-size: var(--fs-xs); color: var(--ink-3); }
 .approx { color: var(--estimate); }
