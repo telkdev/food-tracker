@@ -311,7 +311,10 @@ export function planDayV2(
       f: target.f == null ? null : target.f - st.m.f,
       c: target.c == null ? null : target.c - st.m.c,
     }
-    const pool = singles.filter(c => !used.has(c.key))
+    // and not the same kind of food under another brand (two cottage cheeses in one plan): first word of the name
+    const kind = (k: string) => byKey.get(k)!.name.toLowerCase().split(/[\s,(]+/)[0]
+    const usedKinds = new Set([...used].map(kind))
+    const pool = singles.filter(c => !used.has(c.key) && !usedKinds.has(kind(c.key)))
     // a little or nothing left: no top-ups, and no "kcal reached" gap from the inner planner
     const top = left.kcal > 60 ? planDay(pool, left, { ahead: slots, maxItems: 2, maxMain: 1 }) : { items: [], plan: { kcal: 0, p: 0, f: 0, c: 0 }, left_after: left, gaps: [] }
     const total = add(st.m, top.plan)
