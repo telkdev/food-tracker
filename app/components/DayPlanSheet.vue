@@ -32,6 +32,11 @@ const groups = computed(() => {
   }
   return out
 })
+const MACROS = [
+  { k: 'p', icon: 'protein', color: 'var(--protein)', label: 'protein', short: 'proteinShort' },
+  { k: 'f', icon: 'fat', color: 'var(--fat)', label: 'fat', short: 'fatShort' },
+  { k: 'c', icon: 'carbs', color: 'var(--carbs)', label: 'carbs', short: 'carbsShort' },
+] as const
 const ddmm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`
 
 async function log(items: PlanItem[]) {
@@ -70,10 +75,10 @@ const rows = computed(() => {
   const g = p.goal
   const tot = (k: 'kcal' | 'p' | 'f' | 'c') => Math.round(p.eaten[k] + p.plan[k])
   return [
-    { k: 'kcal', label: t('kcal'), now: Math.round(p.eaten.kcal), v: tot('kcal'), goal: g.kcal, cap: true, tol: g.kcal * 0.05 },
-    { k: 'p', label: t('proteinShort'), now: Math.round(p.eaten.p), v: tot('p'), goal: g.p, cap: false, tol: 0 },
-    { k: 'f', label: t('fatShort'), now: Math.round(p.eaten.f), v: tot('f'), goal: g.f, cap: true, tol: 2 },
-    { k: 'c', label: t('carbsShort'), now: Math.round(p.eaten.c), v: tot('c'), goal: g.c, cap: false, tol: 0 },
+    { k: 'kcal', icon: 'flame', color: 'var(--ink-3)', label: t('kcal'), now: Math.round(p.eaten.kcal), v: tot('kcal'), goal: g.kcal, cap: true, tol: g.kcal * 0.05 },
+    { k: 'p', icon: 'protein', color: 'var(--protein)', label: t('protein'), now: Math.round(p.eaten.p), v: tot('p'), goal: g.p, cap: false, tol: 0 },
+    { k: 'f', icon: 'fat', color: 'var(--fat)', label: t('fat'), now: Math.round(p.eaten.f), v: tot('f'), goal: g.f, cap: true, tol: 2 },
+    { k: 'c', icon: 'carbs', color: 'var(--carbs)', label: t('carbs'), now: Math.round(p.eaten.c), v: tot('c'), goal: g.c, cap: false, tol: 0 },
   ].map(r => ({
     ...r,
     bad: r.goal != null && r.cap && r.v > r.goal + r.tol,
@@ -111,7 +116,10 @@ const fromLabel = (f: PlanFrom) => f === 'history' ? t('planFromHistory') : f ==
               <li v-for="i in g.items" :key="i.key" class="item">
                 <div class="it">
                   <span class="name">{{ i.name }}<span v-if="i.from !== 'recent' && !i.as_on" class="tag">{{ fromLabel(i.from) }}</span></span>
-                  <span class="sub num"><b>{{ n(i.grams) }} {{ t('g') }}</b> · {{ n(Math.round(i.kcal)) }} {{ t('kcal') }} · {{ t('proteinShort') }} {{ n(i.p) }} · {{ t('fatShort') }} {{ n(i.f) }} · {{ t('carbsShort') }} {{ n(i.c) }}</span>
+                  <span class="sub num"><b>{{ n(i.grams) }} {{ t('g') }}</b> · {{ n(Math.round(i.kcal)) }} {{ t('kcal') }}
+                    <!-- same macro icons and colours as the calorie card -->
+                    <span v-for="m in MACROS" :key="m.k" class="mac" :title="t(m.label)"><Icon :name="m.icon" :size="13" :style="{ color: m.color }" /><span class="sr">{{ t(m.short) }}</span>{{ n(i[m.k]) }}</span>
+                  </span>
                 </div>
                 <!-- ✕ and + side by side on the right: one thumb, no reaching across the row -->
                 <div class="acts">
@@ -127,7 +135,7 @@ const fromLabel = (f: PlanFrom) => f === 'history' ? t('planFromHistory') : f ==
           <p class="lbl">{{ t('planAfter') }}</p>
           <dl class="grid num">
             <div v-for="r in rows" :key="r.k" :class="{ bad: r.bad, ok: r.ok }">
-              <dt>{{ r.label }}</dt>
+              <dt :title="r.label"><template v-if="r.k === 'kcal'">{{ r.label }}</template><template v-else><Icon :name="r.icon" :size="16" :style="{ color: r.color }" /><span class="sr">{{ r.label }}</span></template></dt>
               <dd><span class="was">{{ n(r.now) }}</span> → <b>{{ n(r.v) }}</b><template v-if="r.goal != null"><span class="of">/{{ n(r.goal) }}</span></template></dd>
             </div>
           </dl>
@@ -170,6 +178,9 @@ const fromLabel = (f: PlanFrom) => f === 'history' ? t('planFromHistory') : f ==
 }
 .sub { font-size: var(--fs-xs); color: var(--ink-3); }
 .sub b { color: var(--ink); font-weight: var(--fw-medium); }
+.mac { display: inline-flex; align-items: center; gap: 2px; margin-left: var(--s-2); white-space: nowrap; vertical-align: -2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.grid dt { display: flex; align-items: center; }
 .acts { flex: none; display: flex; align-items: center; gap: 2px; }
 .act {
   width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; padding: 0; border-radius: 50%;
