@@ -94,6 +94,45 @@ export interface Settings {
   /** manual water goal; null = the suggestion below */
   waterGoalMl?: number | null
   water_auto?: { ml: number, basis: 'weight' | 'sex' | 'default', training_day_extra_ml: number }
+  /** others can see me in the Rating tab */
+  showInRating?: boolean
+}
+
+export type RatingPeriod = 'today' | 'yesterday' | 'week'
+export interface RatingUser {
+  id: string
+  name: string
+  me: boolean
+  rank: number | null
+  /** 0–100; null = nothing logged */
+  score: number | null
+  streak: number
+  today_logged: boolean
+  kcal_goal: number
+  p_goal: number
+  p_goal_auto: boolean
+  /** day: totals; week: average over logged days */
+  kcal: number
+  p: number
+  entries?: number
+  logged_days?: number
+  on_target_days?: number
+  days?: { date: string, score: number | null }[]
+  top: string[]
+}
+export interface Rating { period: RatingPeriod, today: string, from: string, to: string, hidden_me: boolean, users: RatingUser[] }
+export interface RatingPerson {
+  id: string
+  name: string
+  me: boolean
+  today: string
+  date: string
+  streak: number
+  goal: { kcal: number, p: number, p_auto: boolean }
+  totals: Totals
+  score: number | null
+  meals: { meal: Meal, kcal: number, entries: { name: string, grams: number, kcal: number, p: number, estimate: boolean }[] }[]
+  days: { date: string, kcal: number, score: number | null }[]
 }
 
 /** Something that can be logged: a saved product, an OFF hit, a recent entry or a manual item. */

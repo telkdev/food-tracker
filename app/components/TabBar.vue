@@ -4,6 +4,7 @@ const route = useRoute()
 const tabs = computed(() => [
   { to: '/', icon: 'today', label: t('tabToday'), active: route.path === '/' },
   { to: '/week', icon: 'week', label: t('tabWeek'), active: route.path.startsWith('/week') },
+  { to: '/rating', icon: 'trophy', label: t('tabRating'), active: route.path.startsWith('/rating') },
   { to: '/tips', icon: 'tips', label: t('tabTips'), active: route.path.startsWith('/tips') },
   { to: '/products', icon: 'products', label: t('tabProducts'), active: route.path.startsWith('/products') },
 ])
@@ -21,7 +22,7 @@ const tabs = computed(() => [
 <style scoped>
 .tabbar {
   position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   padding: 2px max(var(--s-2), env(safe-area-inset-left)) env(safe-area-inset-bottom) max(var(--s-2), env(safe-area-inset-right));
   background: var(--tabbar-bg);
   backdrop-filter: saturate(1.6) blur(20px); -webkit-backdrop-filter: saturate(1.6) blur(20px);

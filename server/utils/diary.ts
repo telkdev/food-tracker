@@ -211,10 +211,11 @@ export async function setGoals(uid: string, g: GoalsInput) {
   if (g.f_goal !== undefined) set.fGoal = g.f_goal
   if (g.c_goal !== undefined) set.cGoal = g.c_goal
   if (g.water_goal_ml !== undefined) set.waterGoalMl = g.water_goal_ml
+  if (g.show_in_rating !== undefined) set.showInRating = g.show_in_rating
   if (!Object.keys(set).length) throw createError({ statusCode: 400, statusMessage: 'Nothing to update' })
   await getSettings(uid)
   const [row] = await useDb().update(schema.settings).set(set).where(eq(schema.settings.userId, uid)).returning().catch(dbError)
-  return { kcal_goal: row!.kcalGoal, p_goal: row!.pGoal, f_goal: row!.fGoal, c_goal: row!.cGoal, water_goal_ml: row!.waterGoalMl }
+  return { kcal_goal: row!.kcalGoal, p_goal: row!.pGoal, f_goal: row!.fGoal, c_goal: row!.cGoal, water_goal_ml: row!.waterGoalMl, show_in_rating: row!.showInRating }
 }
 
 // ---------- products ----------
