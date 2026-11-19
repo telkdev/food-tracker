@@ -13,8 +13,8 @@ const dayTotals = (d: Day) => ({
   date: d.date, totals: d.totals, goal_kcal: d.goal.kcal, left_kcal: d.remaining_kcal,
   ...(d.estimate_kcal ? { estimate_kcal: d.estimate_kcal } : {}),
   water_ml: d.water.ml, water_goal_ml: d.water.goal_ml,
-  // [eaten g, daily reference g, share of kcal with known values]; only when something is known
-  ...(d.extras.fiber.coverage || d.extras.sugar.coverage || d.extras.salt.coverage
+  // [eaten g (unknown values estimated by food type), daily reference g, share of kcal with real values]
+  ...(d.totals.kcal > 0
     ? { fiber_sugar_salt: Object.fromEntries((['fiber', 'sugar', 'salt'] as const).map(k => [k, [d.extras[k].g, d.extras_goal[k], d.extras[k].coverage]])) }
     : {}),
   streak: slimStreak(d.streak),
@@ -50,7 +50,7 @@ const per100 = z.object({
   p: z.number().describe('protein, g per 100 g'),
   f: z.number().describe('fat, g per 100 g'),
   c: z.number().describe('carbohydrates, g per 100 g'),
-  fiber: z.number().optional().describe('fiber, g per 100 g. Pass when the label or Open Food Facts gives it; omit if unknown (never guess 0)'),
+  fiber: z.number().optional().describe('fiber, g per 100 g. Pass when the label or Open Food Facts gives it; omit if unknown (never guess 0; the server estimates unknown values by food type)'),
   sugar: z.number().optional().describe('sugars (total, "of which sugars"), g per 100 g; omit if unknown'),
   salt: z.number().optional().describe('salt, g per 100 g (if only sodium is given: sodium × 2.5); omit if unknown'),
 })
@@ -86,8 +86,8 @@ export function buildMcpServer(uid: string) {
       'Oil, butter and sauces are separate items in the same call, never folded into the dish; ask about them for cooked or dressed food.',
       'source: "label" (read from a package photo), "off" (Open Food Facts), "generic" (standard values for a generic food), "estimate" (you guessed grams or values, e.g. plate photo).',
       'Pass meal explicitly when the user said it; otherwise it is inferred from the time. Pass date when the user means another day (e.g. logging last night\'s dinner after midnight).',
-      'per100 may also carry fiber, sugar and salt: include them whenever the label or Open Food Facts has them, and omit them when unknown.',
-      'Returns the created entries (g = grams) and the updated day totals (fiber_sugar_salt: [eaten g, daily reference g, share of kcal with known values]).',
+      'per100 may also carry fiber, sugar and salt: include them whenever the label or Open Food Facts has them, and omit them when unknown: the server then estimates them by food type for the day totals (marked as estimated), so do not invent them.',
+      'Returns the created entries (g = grams) and the updated day totals (fiber_sugar_salt: [eaten g, daily reference g, share of kcal with real values; the rest is estimated by food type]).',
       'If it times out (server waking), check get_day before retrying so nothing is logged twice.',
     ].join(' '),
     inputSchema: {
@@ -274,9 +274,9 @@ export function buildMcpServer(uid: string) {
   server.registerTool('fill_nutrients', {
     title: 'Fill fiber, sugar, salt for past food',
     description: [
-      'Fills ONLY unknown fiber / sugar / salt (per 100 g) on saved products and past diary entries; known values are never overwritten, nothing else changes.',
+      'Fills ONLY unknown fiber / sugar / salt (per 100 g) on saved products and past diary entries; known values are never overwritten, nothing else changes.', 'Day totals already estimate unknown values by food type, so use this only to replace those estimates with real data, not with guesses.',
       'off: true looks up products with a barcode in Open Food Facts (slow, ~14 per minute). items: values per 100 g for keys from list_missing_nutrients.',
-      'Give values only where you are confident: generic reference values for generic foods (USDA/Polish tables), your best estimate for entries whose source is already "estimate". For a food logged from a label that did not print a value, leave it out (unknown is better than invented).',
+      'Give values only where you are confident: Open Food Facts, or generic reference values for generic foods (USDA/Polish tables). Leave out estimates and foods logged from a label that did not print a value: the server\'s food-type estimate covers them.',
       'Always run with dry_run true first and show him the summary; apply only after he agrees.',
     ].join(' '),
     inputSchema: {
@@ -330,7 +330,7 @@ export function buildMcpServer(uid: string) {
     description: [
       'Summary for a period (a week, a month, any range up to a year) as a coach would read it: averages over complete days',
       '(days under 40% of the kcal goal are partial and left out), goals, days within ±10% kcal, days with protein ≥ 90% of goal,',
-      'macro energy split, meal split, fiber/sugar/salt (lower bound, with coverage), water, top foods by kcal and by protein,',
+      'macro energy split, meal split, fiber/sugar/salt (unknown values estimated by food type; coverage = share of kcal with real values), water, top foods by kcal and by protein,',
       'weight change, and per-day totals. pdf_url downloads the same report as a PDF in a browser where he is logged in to the app;',
       'in the app it is Week → "PDF-отчёт", which can share it straight to Telegram. Use this when he asks for a report or a summary for his coach.',
     ].join(' '),

@@ -1,6 +1,7 @@
 import { and, asc, between, desc, eq, ilike, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Entry, Product, Settings } from '../db/schema'
 import { computeStreak, type Streak } from './streak'
+import { EXTRA_KEYS, fillExtras100, type ExtraKey } from '../../shared/nutrientDefaults'
 
 const r1 = (n: number) => Math.round(n * 10) / 10
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -38,14 +39,34 @@ export function extrasGoal(kcalGoal: number) {
   return { fiber: Math.max(25, Math.round(kcalGoal * 14 / 1000)), sugar: 90, salt: 5 }
 }
 
+type ExtrasRow = Pick<Entry, 'name' | 'grams' | 'kcal100' | 'c100' | 'fiber100' | 'sugar100' | 'salt100' | 'fiber' | 'sugar' | 'salt'>
+
+/**
+ * Fiber / sugar / salt in grams for one entry. Stored values win; unknown ones are estimated from the
+ * food type (shared/nutrientDefaults.ts) at read time and listed in `est`, so the day total is complete
+ * instead of jumping with whichever foods had data. Nothing is written: a real value replaces the estimate.
+ */
+export function entryExtras(e: ExtrasRow): Record<ExtraKey, number> & { est: ExtraKey[] } {
+  const { values, estimated } = fillExtras100({ name: e.name, kcal: e.kcal100, c: e.c100, fiber: e.fiber100, sugar: e.sugar100, salt: e.salt100 })
+  const g = (k: ExtraKey, digits: number) => {
+    const stored = e[k]
+    if (stored != null) return stored
+    const f = 10 ** digits
+    return Math.round(e.grams * values[k] / 100 * f) / f
+  }
+  return { fiber: g('fiber', 2), sugar: g('sugar', 2), salt: g('salt', 3), est: estimated }
+}
+
 function publicEntry(e: Entry) {
+  const x = entryExtras(e)
   return {
     id: e.id, date: e.date, meal: e.meal, name: e.name, grams: e.grams,
+    // as stored: unknown extras are left out, so an edit never saves an estimate as a real value
     per100: per100Of(e),
     kcal: e.kcal, p: e.p, f: e.f, c: e.c,
-    ...(e.fiber != null ? { fiber: e.fiber } : {}),
-    ...(e.sugar != null ? { sugar: e.sugar } : {}),
-    ...(e.salt != null ? { salt: e.salt } : {}),
+    fiber: x.fiber, sugar: x.sugar, salt: x.salt,
+    // which of fiber / sugar / salt are estimated by food type (not from a label or database)
+    ...(x.est.length ? { extras_est: x.est } : {}),
     source: e.source, note: e.note, product_id: e.productId, logged_at: e.loggedAt,
   }
 }
@@ -65,21 +86,22 @@ function totals(rows: { kcal: number | null, p: number | null, f: number | null,
 }
 
 /**
- * Fiber, sugar and salt eaten, plus how much of the day's kcal they are known for (0–1).
- * Old entries and most estimates have no values, so a low coverage means the total is a lower bound.
+ * Fiber, sugar and salt eaten (unknown values estimated by food type, see entryExtras), plus the share of
+ * the day's kcal whose values are real (label, Open Food Facts, filled in) rather than estimated (0–1).
  */
-function extrasTotals(rows: { kcal: number | null, fiber: number | null, sugar: number | null, salt: number | null }[]) {
+function extrasTotals(rows: (ExtrasRow & { kcal: number | null })[]) {
   const kcal = rows.reduce((a, r) => a + (r.kcal ?? 0), 0)
-  const one = (k: 'fiber' | 'sugar' | 'salt', round: (n: number) => number) => {
-    const known = rows.filter(r => r[k] != null)
-    const knownKcal = known.reduce((a, r) => a + (r.kcal ?? 0), 0)
+  const xs = rows.map(r => ({ kcal: r.kcal ?? 0, ...entryExtras(r) }))
+  const one = (k: ExtraKey, round: (n: number) => number) => {
+    const known = xs.filter(r => !r.est.includes(k))
+    const knownKcal = known.reduce((a, r) => a + r.kcal, 0)
     return {
-      g: round(known.reduce((a, r) => a + (r[k] ?? 0), 0)),
+      g: round(xs.reduce((a, r) => a + r[k], 0)),
       // entries with 0 kcal (water, coffee) don't move coverage
       coverage: kcal > 0 ? r2(knownKcal / kcal) : (known.length ? 1 : 0),
     }
   }
-  return { fiber: one('fiber', r1), sugar: one('sugar', r1), salt: one('salt', r2) }
+  return Object.fromEntries(EXTRA_KEYS.map(k => [k, one(k, k === 'salt' ? r2 : r1)])) as Record<ExtraKey, { g: number, coverage: number }>
 }
 
 /** Translate Postgres CHECK violations into a readable 400. */

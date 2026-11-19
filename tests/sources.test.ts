@@ -38,4 +38,10 @@ describe('nutrientSources', () => {
     expect(b.zero).toBe(1)
     expect(b.unknown).toEqual({ count: 1, kcal: 250 })
   })
+
+  it('marks values estimated by food type with ≈', () => {
+    const b = nutrientSources(day({ lunch: [e('Bread', 100, bread, { fiber: 2.7, sugar: 3.6, salt: 1.2, extras_est: ['fiber', 'sugar', 'salt'] }), e('Apple', 100, apple)] }), 'fiber')
+    expect(b.items.map(i => [i.name, i.estimate])).toEqual([['Bread', true], ['Apple', false]])
+    expect(b.unknown.count).toBe(0)
+  })
 })

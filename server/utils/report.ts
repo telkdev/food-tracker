@@ -32,11 +32,15 @@ export async function getReport(uid: string, from: string, to: string) {
     db.select({ date: wt.date, kg: wt.kg }).from(wt).where(and(eq(wt.userId, uid), between(wt.date, addDaysIso(from, -14), end))).orderBy(asc(wt.date)),
     waterGoal(uid, s),
   ])
-  const entries: ReportEntry[] = rows.map(r => ({
-    date: r.date, meal: r.meal as ReportMeal, name: r.name, key: r.productId, grams: r.grams,
-    kcal: r.kcal ?? 0, p: r.p ?? 0, f: r.f ?? 0, c: r.c ?? 0,
-    fiber: r.fiber, sugar: r.sugar, salt: r.salt, source: r.source,
-  }))
+  const entries: ReportEntry[] = rows.map((r) => {
+    // unknown fiber / sugar / salt are estimated by food type, like on Today
+    const x = entryExtras(r)
+    return {
+      date: r.date, meal: r.meal as ReportMeal, name: r.name, key: r.productId, grams: r.grams,
+      kcal: r.kcal ?? 0, p: r.p ?? 0, f: r.f ?? 0, c: r.c ?? 0,
+      fiber: x.fiber, sugar: x.sugar, salt: x.salt, est: x.est, source: r.source,
+    }
+  })
   const lastKg = weights.at(-1)?.kg ?? (await getWeights(uid, today, 120)).at(-1)?.kg ?? null
   const targets = recommendTargets(profileOf(s), lastKg, today)
   const report = buildReport({

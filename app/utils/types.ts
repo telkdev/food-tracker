@@ -21,9 +21,12 @@ export interface Entry {
   p: number | null
   f: number | null
   c: number | null
+  /** grams; unknown values are estimated by food type on the server (listed in extras_est) */
   fiber?: number
   sugar?: number
   salt?: number
+  /** which of fiber / sugar / salt are estimated by food type, not real values */
+  extras_est?: ExtraKey[]
   source: EntrySource
   note: string | null
   product_id: string | null

@@ -23,7 +23,7 @@ export interface SourceBreakdown {
   items: SourceItem[]
   /** foods that gave nothing of it (e.g. no sugar in chicken) */
   zero: number
-  /** foods with no data for it (old entries, estimates without fiber/sugar/salt) */
+  /** foods with no data for it (rare now: the server estimates unknown fiber / sugar / salt by food type) */
   unknown: { count: number, kcal: number }
 }
 
@@ -50,14 +50,16 @@ export function nutrientSources(day: Pick<Day, 'meals'>, key: SourceKey): Source
       const g = entryAmount(e, key)
       if (g == null) { unknownFoods.add(id); unknownKcal += e.kcal ?? e.per100.kcal * e.grams / 100; continue }
       if (g <= 0) { zeroFoods.add(id); continue }
+      // ≈: guessed food, or this value estimated by food type
+      const est = e.source === 'estimate' || (key !== 'p' && key !== 'f' && key !== 'c' && !!e.extras_est?.includes(key))
       const it = byFood.get(id)
       if (it) {
         it.g += g; it.grams += e.grams; it.times++
         if (!it.meals.includes(meal)) it.meals.push(meal)
-        it.estimate ||= e.source === 'estimate'
+        it.estimate ||= est
       }
       else {
-        byFood.set(id, { key: id, name: e.name, g, share: 0, grams: e.grams, meals: [meal], times: 1, estimate: e.source === 'estimate' })
+        byFood.set(id, { key: id, name: e.name, g, share: 0, grams: e.grams, meals: [meal], times: 1, estimate: est })
       }
     }
   }
