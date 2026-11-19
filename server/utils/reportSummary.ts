@@ -5,8 +5,8 @@
  * Rules (same spirit as the Tips engine):
  * - a day with entries but < 40 % of the kcal goal is "partial" (forgot to log, sick day):
  *   it is listed, but left out of averages and adherence so it doesn't fake a deficit;
- * - fiber / sugar / salt are only known for some foods: averages are a lower bound, with coverage
- *   (share of kcal the value is known for) shown next to them;
+ * - fiber / sugar / salt unknown for a food are estimated by food type (report.ts → entryExtras); coverage
+ *   is the share of kcal with real values, shown next to them;
  * - goals are the ones in force today: the diary keeps no goal history.
  */
 
@@ -33,6 +33,8 @@ export interface ReportEntry {
   fiber: number | null
   sugar: number | null
   salt: number | null
+  /** which of fiber / sugar / salt are estimated by food type rather than real values */
+  est?: ('fiber' | 'sugar' | 'salt')[]
   source: string
 }
 
@@ -88,8 +90,9 @@ function extra(rows: ReportEntry[], k: 'fiber' | 'sugar' | 'salt') {
 function coverage(rows: ReportEntry[], k: 'fiber' | 'sugar' | 'salt') {
   const kcal = sum(rows, r => r.kcal)
   if (!rows.length) return 0
-  if (kcal <= 0) return rows.some(r => r[k] != null) ? 1 : 0
-  return r2(sum(rows.filter(r => r[k] != null), r => r.kcal) / kcal)
+  const real = (r: ReportEntry) => r[k] != null && !r.est?.includes(k)
+  if (kcal <= 0) return rows.some(real) ? 1 : 0
+  return r2(sum(rows.filter(real), r => r.kcal) / kcal)
 }
 
 export function buildReport(input: ReportInput) {

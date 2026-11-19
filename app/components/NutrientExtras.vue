@@ -3,8 +3,8 @@ import type { ExtraKey, Extras } from '~/utils/types'
 
 /**
  * Fiber, sugar and salt for the day. Fiber is a minimum to reach; sugar and salt are limits.
- * Values are only known for part of the food (old entries and estimates have none), so the
- * coverage line says how much of the day's kcal the numbers are based on.
+ * Where a food has no value, the server estimates it by food type (shared/nutrientDefaults.ts), so the
+ * numbers are complete; the coverage line says for how much of the day's kcal they are exact.
  */
 const props = defineProps<{ extras: Extras, goal: Record<ExtraKey, number>, kcal: number }>()
 const emit = defineEmits<{ open: [key: ExtraKey] }>()
@@ -23,7 +23,8 @@ const rows = computed(() => (['fiber', 'sugar', 'salt'] as const).map((k) => {
 }))
 // one honest number: the lowest coverage of the three (they usually move together)
 const coverage = computed(() => Math.min(...rows.value.map(r => props.extras[r.key].coverage)))
-const none = computed(() => rows.value.every(r => !props.extras[r.key].coverage))
+// nothing eaten yet; unknown values are estimated by food type on the server, so any food gives numbers
+const none = computed(() => props.kcal <= 0 && rows.value.every(r => !r.g))
 // collapsed by default to one summary row; the choice is remembered on this device
 const openKey = 'extras-open'
 const open = ref(false)
@@ -61,6 +62,7 @@ function toggle() {
     </ul>
     <p v-if="open" class="note">
       <template v-if="none">{{ t('extrasNone') }}</template>
+      <template v-else-if="coverage < 0.005"><span class="approx">≈</span> {{ t('extrasAllEst') }}</template>
       <template v-else-if="coverage < 0.995"><span class="approx">≈</span> {{ t('extrasCoverage', { n: Math.round(coverage * 100) }) }}</template>
       <template v-else>{{ t('extrasNorm') }}</template>
     </p>
