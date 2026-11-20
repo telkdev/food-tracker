@@ -46,9 +46,9 @@ export async function logWater(uid: string, input: LogWaterInput, by?: string | 
   return { created: row!, water: await getWaterDay(uid, s, date) }
 }
 
-export async function deleteWater(uid: string, id: string) {
-  const [row] = await useDb().delete(schema.water).where(and(eq(schema.water.userId, uid), eq(schema.water.id, id))).returning()
-  if (!row) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+export async function deleteWater(uid: string, id: string, onlyOwn?: string | null) {
+  const [row] = await useDb().delete(schema.water).where(and(eq(schema.water.userId, uid), eq(schema.water.id, id), onlyOwn ? eq(schema.water.loggedBy, onlyOwn) : undefined)).returning()
+  if (!row) throw createError({ statusCode: 404, statusMessage: onlyOwn ? 'Not found among the ones you added' : 'Not found' })
   const s = await getSettings(uid)
   return { deleted: { id: row.id, ml: row.ml, date: row.date }, water: await getWaterDay(uid, s, row.date) }
 }

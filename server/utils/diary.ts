@@ -214,7 +214,8 @@ export async function logFood(uid: string, input: LogFoodInput, by?: string | nu
   return { created: created.map(publicEntry), day: await getDay(uid, date) }
 }
 
-export async function updateEntry(uid: string, id: string, patch: UpdateEntryInput) {
+/** onlyOwn: limit to entries this user logged (a grantee without the edit right). */
+export async function updateEntry(uid: string, id: string, patch: UpdateEntryInput, onlyOwn?: string | null) {
   const set: Partial<typeof schema.entries.$inferInsert> = {}
   if (patch.grams !== undefined) set.grams = patch.grams
   if (patch.meal !== undefined) set.meal = patch.meal
@@ -222,14 +223,14 @@ export async function updateEntry(uid: string, id: string, patch: UpdateEntryInp
   if (patch.note !== undefined) set.note = patch.note
   if (patch.name !== undefined) set.name = patch.name
   if (!Object.keys(set).length) throw createError({ statusCode: 400, statusMessage: 'Nothing to update' })
-  const [row] = await useDb().update(schema.entries).set(set).where(and(eq(schema.entries.userId, uid), eq(schema.entries.id, id))).returning().catch(dbError)
-  if (!row) throw createError({ statusCode: 404, statusMessage: 'Entry not found' })
+  const [row] = await useDb().update(schema.entries).set(set).where(and(eq(schema.entries.userId, uid), eq(schema.entries.id, id), onlyOwn ? eq(schema.entries.loggedBy, onlyOwn) : undefined)).returning().catch(dbError)
+  if (!row) throw createError({ statusCode: 404, statusMessage: onlyOwn ? 'Entry not found among the ones you added (the owner has not allowed you to edit others)' : 'Entry not found' })
   return publicEntry(row)
 }
 
-export async function deleteEntry(uid: string, id: string) {
-  const [row] = await useDb().delete(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.id, id))).returning()
-  if (!row) throw createError({ statusCode: 404, statusMessage: 'Entry not found' })
+export async function deleteEntry(uid: string, id: string, onlyOwn?: string | null) {
+  const [row] = await useDb().delete(schema.entries).where(and(eq(schema.entries.userId, uid), eq(schema.entries.id, id), onlyOwn ? eq(schema.entries.loggedBy, onlyOwn) : undefined)).returning()
+  if (!row) throw createError({ statusCode: 404, statusMessage: onlyOwn ? 'Entry not found among the ones you added (the owner has not allowed you to edit others)' : 'Entry not found' })
   return { deleted: publicEntry(row), day: await getDay(uid, row.date) }
 }
 

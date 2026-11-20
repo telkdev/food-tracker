@@ -1,6 +1,6 @@
-export interface Connection { id: string, login: string, name: string }
+export interface Connection { id: string, login: string, name: string, can_log: boolean, can_edit: boolean }
 
-/** People connected to me (we can log into each other's diary). Cached for the session. */
+/** Diaries shared with me (I may open them on Today). Cached for the session. */
 export function useConnections() {
   const items = useState<Connection[]>('connections', () => [])
   const loaded = useState<boolean>('connections-loaded', () => false)

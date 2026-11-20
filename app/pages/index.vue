@@ -75,6 +75,8 @@ function go(date: string) {
 
 // ---------- switching between my diary and a connected person's ----------
 const forName = computed(() => (diaryFor.value ? conns.nameOf(diaryFor.value) : ''))
+// someone's diary I may only look at (no right to add): no add button
+const canAdd = computed(() => !diaryFor.value || conns.items.value.find(c => c.id === diaryFor.value)?.can_log !== false)
 function resetDiaryCaches() {
   cache.value = {}
   recent.items.value = []
@@ -313,10 +315,6 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 <template>
   <div class="today" @touchstart.passive="touchStart" @touchend.passive="touchEnd">
     <header class="top">
-      <div v-if="conns.items.value.length" class="whose" role="tablist" :aria-label="t('connectionsTitle')">
-        <button type="button" role="tab" class="wchip" :class="{ on: !diaryFor }" :aria-selected="!diaryFor" @click="switchDiary(null)">{{ t('diaryMine') }}</button>
-        <button v-for="c in conns.items.value" :key="c.id" type="button" role="tab" class="wchip" :class="{ on: diaryFor === c.id }" :aria-selected="diaryFor === c.id" @click="switchDiary(c.id)">{{ c.name }}</button>
-      </div>
       <p class="eyebrow">
         <template v-if="diaryFor"><span class="hello forwho">{{ t('diaryOf', { name: forName }) }}</span><span class="sep" aria-hidden="true"> · </span></template>
         <template v-else-if="rel === 0"><span class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</span><span class="sep" aria-hidden="true"> · </span></template><span class="date">{{ eyebrow }}</span>
@@ -331,6 +329,16 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
         </div>
       </div>
       <div class="nav">
+        <!-- whose diary: a small dropdown, only when someone shared theirs with me -->
+        <label v-if="conns.items.value.length" class="whosel" :class="{ other: !!diaryFor }">
+          <Icon name="person" :size="16" />
+          <span class="wl">{{ diaryFor ? forName : t('diaryMine') }}</span>
+          <Icon name="down" :size="14" />
+          <select :value="diaryFor ?? ''" :aria-label="t('diaryWhose')" @change="switchDiary(($event.target as HTMLSelectElement).value || null)">
+            <option value="">{{ t('diaryMineFull') }}</option>
+            <option v-for="c in conns.items.value" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+        </label>
         <button type="button" class="icon-btn" :aria-label="t('prevDay')" @click="shift(-1)"><Icon name="left" /></button>
         <button type="button" class="icon-btn" :aria-label="t('nextDay')" :disabled="rel >= 0" @click="shift(1)"><Icon name="right" /></button>
         <NuxtLink to="/settings" class="icon-btn" :aria-label="t('settings')"><Icon name="settings" /></NuxtLink>
@@ -343,7 +351,6 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
     </div>
     <p v-else-if="loadError" class="loaderr">{{ t('loadFailed', { msg: loadError }) }}</p>
 
-    <p v-if="diaryFor && forName" class="fornote">{{ t('diaryForNote', { name: forName }) }}</p>
 
     <template v-if="day">
       <div class="content" :class="{ stale: loading }">
@@ -392,7 +399,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 
     <!-- room for the floating button so the last meal (Snack) is never under it -->
     <div class="fab-room" aria-hidden="true" />
-    <div class="fabs">
+    <div v-if="canAdd" class="fabs">
       <button type="button" class="fab" @click="openAdd()">
         <Icon name="plus" :size="24" /><span>{{ t('addFood') }}</span>
       </button>
@@ -427,15 +434,17 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 /* quiet mark on 10, 20, 30, 50, 100 … days: a soft pill, nothing more */
 .streak.milestone { padding: 2px var(--s-2); margin-left: calc(-1 * var(--s-2)); border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); }
 .streak.milestone .num { color: inherit; }
-.whose { grid-column: 1 / -1; display: flex; gap: var(--s-2); overflow-x: auto; scrollbar-width: none; margin-bottom: var(--s-2); }
-.whose::-webkit-scrollbar { display: none; }
-.wchip {
-  flex: none; min-height: 32px; padding: 0 var(--s-3); border: var(--hair) solid var(--line); border-radius: var(--r-pill);
-  background: transparent; color: var(--ink-2); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+.whosel {
+  position: relative; align-self: center; display: inline-flex; align-items: center; gap: 4px; height: 32px; max-width: 120px;
+  margin-right: var(--s-1); padding: 0 var(--s-2); border: var(--hair) solid var(--line); border-radius: var(--r-pill);
+  color: var(--ink-2); font-size: var(--fs-sm); font-weight: var(--fw-medium);
 }
-.wchip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.whosel.other { background: var(--accent-soft); border-color: transparent; color: var(--accent-soft-ink); }
+.whosel .wl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.whosel :deep(svg) { flex: none; }
+/* the native select covers the pill: the phone's own picker opens on tap */
+.whosel select { position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
 .forwho { color: var(--accent-soft-ink); font-weight: var(--fw-medium); }
-.fornote { margin: calc(-1 * var(--s-3)) 0 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); }
 .nav { display: flex; gap: 0; margin-right: calc(-1 * var(--s-2)); }
 .nav .icon-btn:disabled { opacity: .3; }
 

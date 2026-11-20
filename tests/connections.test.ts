@@ -1,27 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { inDiaryScope, pair } from '../server/utils/connections'
+import { allows, scopeOf } from '../server/utils/connections'
 
-describe('connections', () => {
-  it('stores a pair once, in order', () => {
-    expect(pair('owner', 'nadia')).toEqual({ userA: 'nadia', userB: 'owner' })
-    expect(pair('nadia', 'owner')).toEqual({ userA: 'nadia', userB: 'owner' })
+describe('diary access', () => {
+  it('rights: any access reads; log needs can_log; edit needs can_log (own entries) or can_edit', () => {
+    expect(allows(null, 'read')).toBe(false)
+    expect(allows({ canLog: false, canEdit: false }, 'read')).toBe(true)
+    expect(allows({ canLog: true, canEdit: false }, 'log')).toBe(true)
+    expect(allows({ canLog: false, canEdit: true }, 'log')).toBe(false)
+    expect(allows({ canLog: true, canEdit: false }, 'edit')).toBe(true)
+    expect(allows({ canLog: false, canEdit: true }, 'edit')).toBe(true)
+    expect(allows({ canLog: false, canEdit: false }, 'edit')).toBe(false)
   })
-  it('switches diary only on diary routes', () => {
-    expect(inDiaryScope('GET', '/api/day')).toBe(true)
-    expect(inDiaryScope('POST', '/api/entries')).toBe(true)
-    expect(inDiaryScope('DELETE', '/api/entries/123')).toBe(true)
-    expect(inDiaryScope('POST', '/api/water')).toBe(true)
-    expect(inDiaryScope('POST', '/api/meals/abc/log')).toBe(true)
-    // never: changing someone's settings, account, admin, products list edits, reports, preferences
-    expect(inDiaryScope('PATCH', '/api/settings')).toBe(false)
-    expect(inDiaryScope('GET', '/api/account')).toBe(false)
-    expect(inDiaryScope('POST', '/api/admin/users')).toBe(false)
-    expect(inDiaryScope('DELETE', '/api/products/123')).toBe(false)
-    expect(inDiaryScope('PATCH', '/api/products/123')).toBe(false)
-    expect(inDiaryScope('GET', '/api/report.pdf')).toBe(false)
-    expect(inDiaryScope('PUT', '/api/preferences/x')).toBe(false)
-    expect(inDiaryScope('POST', '/api/meals')).toBe(false)
-    expect(inDiaryScope('GET', '/api/connections')).toBe(false)
-    expect(inDiaryScope('GET', '/api/day/extra')).toBe(false)
+  it('switches diary only on diary routes, with the right each needs', () => {
+    expect(scopeOf('GET', '/api/day')).toBe('read')
+    expect(scopeOf('POST', '/api/entries')).toBe('log')
+    expect(scopeOf('POST', '/api/water')).toBe('log')
+    expect(scopeOf('POST', '/api/meals/abc/log')).toBe('log')
+    expect(scopeOf('DELETE', '/api/entries/123')).toBe('edit')
+    expect(scopeOf('PATCH', '/api/entries/123')).toBe('edit')
+    expect(scopeOf('DELETE', '/api/water/123')).toBe('edit')
+    // never: changing someone's settings, account, admin, products list edits, reports, preferences, access
+    for (const [m, p] of [['PATCH', '/api/settings'], ['GET', '/api/account'], ['POST', '/api/admin/users'], ['DELETE', '/api/products/1'],
+      ['PATCH', '/api/products/1'], ['GET', '/api/report.pdf'], ['PUT', '/api/preferences/x'], ['POST', '/api/meals'], ['GET', '/api/access'],
+      ['PUT', '/api/access/granted/x'], ['GET', '/api/day/extra']] as const) expect(scopeOf(m, p)).toBe(null)
   })
 })

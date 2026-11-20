@@ -50,21 +50,6 @@ function setName(u: Row) {
   const name = prompt(t('greetingName'), u.name ?? '')
   if (name !== null) patch(u, { name: name.trim() || null })
 }
-// ---------- connections: pairs who can log into each other's diary ----------
-const { data: pairs, refresh: refreshPairs } = await useAsyncData('admin-connections', () => requestFetch<[string, string][]>('/api/admin/connections'))
-const cp = reactive({ a: '', b: '' })
-const label = (id: string) => { const u = rows.value?.find(r => r.id === id); return u ? (u.name ? `${u.name} (${u.login})` : u.login) : id }
-const connectPair = () => run(async () => {
-  if (!cp.a || !cp.b || cp.a === cp.b) return
-  await $fetch('/api/admin/connections', { method: 'POST', body: { a: cp.a, b: cp.b } })
-  Object.assign(cp, { a: '', b: '' })
-  await refreshPairs()
-})
-const disconnectPair = (a: string, b: string) => run(async () => {
-  if (!confirm(t('disconnectConfirm', { name: `${label(a)} ↔ ${label(b)}` }))) return
-  await $fetch('/api/admin/connections', { method: 'DELETE', query: { a, b } })
-  await refreshPairs()
-})
 useHead({ title: () => `${t('usersTitle')} · ${t('appName')}` })
 </script>
 
@@ -102,20 +87,6 @@ useHead({ title: () => `${t('usersTitle')} · ${t('appName')}` })
       </div>
     </section>
 
-    <section class="card group">
-      <h2 class="section-title">{{ t('connectedPairs') }}</h2>
-      <div v-for="[a, b] in pairs ?? []" :key="`${a}|${b}`" class="pair">
-        <span>{{ label(a) }} ↔ {{ label(b) }}</span>
-        <button type="button" class="btn sm" @click="disconnectPair(a, b)">{{ t('disconnect') }}</button>
-      </div>
-      <div class="pick">
-        <select v-model="cp.a" class="input"><option value="" disabled>—</option><option v-for="u in rows ?? []" :key="u.id" :value="u.id">{{ label(u.id) }}</option></select>
-        <select v-model="cp.b" class="input"><option value="" disabled>—</option><option v-for="u in rows ?? []" :key="u.id" :value="u.id" :disabled="u.id === cp.a">{{ label(u.id) }}</option></select>
-      </div>
-      <p class="hint">{{ t('connectionsHint') }}</p>
-      <button type="button" class="btn" :disabled="!cp.a || !cp.b || cp.a === cp.b" @click="connectPair">{{ t('connectUsers') }}</button>
-    </section>
-
     <form class="card group" @submit.prevent="add">
       <h2 class="section-title">{{ t('addUser') }}</h2>
       <input v-model="nu.login" class="input" :placeholder="t('loginName')" autocapitalize="off" autocomplete="off" spellcheck="false">
@@ -141,6 +112,4 @@ useHead({ title: () => `${t('usersTitle')} · ${t('appName')}` })
 .hint { font-size: var(--fs-xs); color: var(--ink-2); margin: 0; }
 .err { color: var(--danger); font-size: var(--fs-sm); }
 .linkbox { border: 1px solid var(--accent); }
-.pair { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
-.pick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
 </style>
