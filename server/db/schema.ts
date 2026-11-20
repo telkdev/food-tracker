@@ -304,14 +304,20 @@ export const passkeys = pgTable('passkeys', {
 export type User = typeof users.$inferSelect
 export type Passkey = typeof passkeys.$inferSelect
 
-/** Two users who may log food and water into each other's diary. Stored once per pair, user_a < user_b. */
-export const connections = pgTable('connections', {
-  userA: text('user_a').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  userB: text('user_b').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  createdBy: text('created_by'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+/**
+ * Access to someone's diary, granted by its owner. status 'requested' = asked by the grantee, not yet answered.
+ * Any active row = may see the diary; can_log = add food/water; can_edit = edit/delete any entry (otherwise only own).
+ */
+export const diaryAccess = pgTable('diary_access', {
+  ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  granteeId: text('grantee_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: text('status', { enum: ['active', 'requested'] }).notNull().default('active'),
+  canLog: boolean('can_log').notNull().default(true),
+  canEdit: boolean('can_edit').notNull().default(false),
+  ...timestamps,
 }, t => [
-  primaryKey({ name: 'connections_pkey', columns: [t.userA, t.userB] }),
-  check('connections_ordered', sql`${t.userA} < ${t.userB}`),
-  index('connections_user_b_idx').on(t.userB),
+  primaryKey({ name: 'diary_access_pkey', columns: [t.ownerId, t.granteeId] }),
+  check('diary_access_not_self', sql`${t.ownerId} <> ${t.granteeId}`),
+  check('diary_access_status', sql`${t.status} in ('active', 'requested')`),
+  index('diary_access_grantee_idx').on(t.granteeId),
 ])

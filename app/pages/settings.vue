@@ -56,19 +56,6 @@ async function toggleRating() {
   finally { ratingBusy.value = false }
 }
 
-// ---------- connections: people I can log for, and who can log for me ----------
-const conns = useConnections()
-onMounted(() => conns.load(true))
-async function disconnectUser(c: { id: string, name: string }) {
-  if (!confirm(t('disconnectConfirm', { name: c.name }))) return
-  try {
-    await $fetch(`/api/connections/${encodeURIComponent(c.id)}`, { method: 'DELETE' })
-    await conns.load(true)
-    toast.show(t('disconnected'))
-  }
-  catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
-}
-
 // ---------- streak carried over from another app ----------
 const sc = reactive({ days: '', until: '' })
 watch(data, (s) => { if (s) Object.assign(sc, { days: s.streakCarryDays ? String(s.streakCarryDays) : '', until: s.streakCarryUntil ?? '' }) }, { immediate: true })
@@ -230,14 +217,7 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       <p class="hint">{{ t('ratingSettingHint') }}</p>
     </section>
 
-    <section id="connections" class="card group">
-      <h2 class="section-title">{{ t('connectionsTitle') }}</h2>
-      <div v-for="c in conns.items.value" :key="c.id" class="line">
-        <span class="ll">{{ c.name }} <span class="hint">· {{ c.login }}</span></span>
-        <button type="button" class="btn sm" @click="disconnectUser(c)">{{ t('disconnect') }}</button>
-      </div>
-      <p class="hint">{{ conns.items.value.length ? t('connectionsHint') : t('connectionsNone') }}</p>
-    </section>
+    <DiaryAccess />
 
     <form class="card group" @submit.prevent="saveCarry">
       <h2 class="section-title">{{ t('streakTitle') }}</h2>
