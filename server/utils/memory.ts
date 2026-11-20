@@ -91,13 +91,18 @@ export async function deleteSavedMeal(uid: string, id: string) {
 }
 
 /** Log every item of a saved meal; scale multiplies all grams (e.g. 1.5 for a bigger portion). */
-export async function logSavedMeal(uid: string, input: LogMealInput) {
-  const m = await getSavedMeal(uid, input.meal_id)
+/** `by`: a connected user logging into uid's diary; their own usual meals can be used too. */
+export async function logSavedMeal(uid: string, input: LogMealInput, by?: string | null) {
+  const other = by && by !== uid ? by : null
+  const m = await getSavedMeal(uid, input.meal_id).catch((e) => {
+    if (!other) throw e
+    return getSavedMeal(other, input.meal_id)
+  })
   const scale = input.scale ?? 1
   // products that still exist are logged by id (their current values); deleted ones fall back to the snapshot
   const ids = m.items.map(i => i.product_id).filter(Boolean) as string[]
   const alive = new Set(ids.length
-    ? (await useDb().select({ id: schema.products.id }).from(schema.products).where(and(eq(schema.products.userId, uid), inArray(schema.products.id, ids)))).map(r => r.id)
+    ? (await useDb().select({ id: schema.products.id }).from(schema.products).where(and(inArray(schema.products.userId, other ? [uid, other] : [uid]), inArray(schema.products.id, ids)))).map(r => r.id)
     : [])
   const items = m.items.map(i => {
     const grams = r1(i.grams * scale)
@@ -105,7 +110,7 @@ export async function logSavedMeal(uid: string, input: LogMealInput) {
       ? { name: i.name, grams, product_id: i.product_id }
       : { name: i.name, grams, per100: i.per100, source: i.source }
   })
-  return logFood(uid, { date: input.date, meal: input.meal ?? m.defaultMeal ?? undefined, items })
+  return logFood(uid, { date: input.date, meal: input.meal ?? m.defaultMeal ?? undefined, items }, other)
 }
 
 // ---------- context for Claude ----------

@@ -12,6 +12,8 @@ export interface Totals { kcal: number, p: number, f: number, c: number }
 
 export interface Entry {
   id: string
+  /** user id of a connected person who wrote it into this diary */
+  logged_by?: string
   date?: string
   meal?: Meal
   name: string

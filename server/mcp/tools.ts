@@ -56,12 +56,17 @@ const per100 = z.object({
 })
 const meal = z.enum(['breakfast', 'lunch', 'dinner', 'snack'])
 const date = z.string().describe('Local date YYYY-MM-DD (Europe/Warsaw). Omit for today.')
+const forUser = z.string().optional().describe('Someone else\'s diary: a connected person\'s login or name from get_context.connections (e.g. "nadia"). Omit for his own diary.')
+/** Drop for_user before validating the rest with the shared zod schemas. */
+const without = <T extends { for_user?: string }>({ for_user: _, ...rest }: T) => rest
 
 /** One server per request, bound to the user the OAuth token belongs to: every tool reads and writes only their data. */
 export function buildMcpServer(uid: string) {
   const tool = makeTool(uid)
+  // tag replies for another person's diary so the confirmation names them
+  const forOf = async (target: string) => (target === uid ? {} : { for_user: target, for_name: await userDisplayName(target) })
   const server = new McpServer(
-    { name: 'food-tracker', title: 'Food Tracker', version: '0.6.0' },
+    { name: 'food-tracker', title: 'Food Tracker', version: '0.7.0' },
     { instructions: [
       'Personal food diary of the signed-in user. This server IS the diary: an entry exists only if log_food or log_meal returned it. All values are per 100 g; the server computes totals. Dates are local Europe/Warsaw.',
       'Water and other drinks without calories (still or sparkling water, unsweetened tea, black coffee, herbal tea) go to log_water in ml, never to log_food. Drinks with calories (milk, juice, cola, latte, kefir, protein shake) go to log_food only and do not count as water.',
@@ -71,6 +76,7 @@ export function buildMcpServer(uid: string) {
       'Ask for grams instead of guessing; a guess must be logged with source "estimate".',
       'When he states a lasting habit or corrects you ("I always weigh rice cooked", "my mug is 300 ml"), save it with set_preference.',
       'The server sleeps when idle and takes up to ~60 s to wake. If a call times out or fails with a connection or 5xx error, tell the user the diary is waking up, wait ~30 s and retry the same call, up to 3 times, before reporting a failure. Retrying a log is safe only if the failed call returned nothing: check get_day first so nothing is logged twice.',
+      'Connected people: get_context lists `connections`, people whose diary he may also fill (family, partner). When he asks to log for one of them ("запиши Наде …", "Надя съела …", "log for Nadia"), pass for_user with that person on every call for them (get_context, search_products, log_food, log_meal, log_water, get_day, update_entry, delete_entry, delete_water): call get_context with for_user once first to get their usual meals, frequent products and rules, and log with their product ids and their grams habits. Never log their food into his own diary or his into theirs; if the person is not in connections, say so instead of logging. Confirm with the person\'s name, e.g. "Записал Наде: …". Day plans and suggestions are only for the person asking, unless he asks for theirs.',
       'Day plan: on his first food log of the day, and again after a meal when what is left is unbalanced (e.g. little fat left but lots of protein, or kcal nearly used up with protein far short), call suggest_day_plan and offer the result in a few lines: what to eat for the rest of today, mostly from foods he already has, with grams, and how the day would end. Ask "Записать?" / "Log it?" and wait for a yes; never log a suggestion on your own. He may say some food is gone: call it again with exclude. After a yes, log each meal of the plan with log_food (product_id when given, otherwise the per100 and source from the plan), with any changes he asked for. Do not offer it again in the same conversation unless he asks or the balance changed after a new meal; if he declines, drop it.',
     ].join(' ') },
   )
@@ -91,6 +97,7 @@ export function buildMcpServer(uid: string) {
       'If it times out (server waking), check get_day before retrying so nothing is logged twice.',
     ].join(' '),
     inputSchema: {
+      for_user: forUser,
       date: date.optional(),
       meal: meal.optional(),
       items: z.array(z.object({
@@ -102,20 +109,25 @@ export function buildMcpServer(uid: string) {
         note: z.string().optional(),
       })).min(1),
     },
-  }, tool('log_food', async (args) => {
-    const r = await logFood(uid, parseOr400(logFoodSchema, args))
-    return { created: r.created.map(slimEntry), day: dayTotals(r.day) }
+  }, tool('log_food', async (args: { for_user?: string }) => {
+    const target = await resolveTarget(uid, args.for_user)
+    const r = await logFood(target, parseOr400(logFoodSchema, without(args)), uid)
+    return { ...(await forOf(target)), created: r.created.map(slimEntry), day: dayTotals(r.day) }
   }))
 
   server.registerTool('get_context', {
     title: 'Get memory',
-    description: 'Call once at the start of a food conversation. Returns: user_name (what to call the user), prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it. If this first call times out or errors, the server is waking from sleep (up to ~60 s): wait ~30 s and retry up to 3 times before giving up.',
-    inputSchema: {},
+    description: 'Call once at the start of a food conversation. Returns: user_name (what to call the user), connections (people whose diary he may also log into; see for_user), prefs (his standing rules; follow them), meals (his usual meals: id, name, kcal, items [name, grams]), frequent (products he logged most in 60 days: id, name, last grams, kcal per 100 g, times), and today\'s totals with streak (consecutive days with at least one entry, as of today; today_logged false means today is still open and the streak is kept until midnight). Mention the streak only in passing, e.g. when milestone is true (10, 20, 30, 50, 100 days…); never nag about it. If this first call times out or errors, the server is waking from sleep (up to ~60 s): wait ~30 s and retry up to 3 times before giving up.',
+    inputSchema: { for_user: forUser },
     annotations: { readOnlyHint: true },
-  }, tool('get_context', async () => {
-    const c = await getContext(uid)
+  }, tool('get_context', async ({ for_user }: { for_user?: string }) => {
+    const target = await resolveTarget(uid, for_user)
+    const c = await getContext(target)
+    const conns = target === uid ? await listConnections(uid) : []
     return {
-      user_name: await userDisplayName(uid),
+      ...(target === uid ? {} : { for_user: target, note: 'This is the context of a connected person, not his own. Pass for_user on every call for them.' }),
+      user_name: await userDisplayName(target),
+      ...(conns.length ? { connections: conns.map(u => [u.login, u.name]), connections_format: '[login for for_user, name]' } : {}),
       prefs: Object.fromEntries(c.prefs.map(p => [p.key, p.text])),
       meals: c.meals.map(m => ({ id: m.id, name: m.name, ...(m.default_meal ? { meal: m.default_meal } : {}), kcal: Math.round(m.kcal), items: m.items.map(i => [i.name, i.grams]) })),
       meals_items_format: '[name, grams]',
@@ -140,11 +152,12 @@ export function buildMcpServer(uid: string) {
 
   server.registerTool('log_meal', {
     title: 'Log a usual meal',
-    description: 'Save a usual meal to the user\'s diary in the app, all items in one call (id from get_context). Use it when he says he ate one of his usual meals or asks to log it; never write it into a note or draft instead. scale multiplies every item\'s grams (e.g. 1.5). To change one item, log the meal and then fix that entry with update_entry, or log extra items with log_food.',
-    inputSchema: { meal_id: z.string(), date: date.optional(), meal: meal.optional(), scale: z.number().optional() },
-  }, tool('log_meal', async (args) => {
-    const r = await logSavedMeal(uid, parseOr400(logMealSchema, args))
-    return { created: r.created.map(slimEntry), day: dayTotals(r.day) }
+    description: 'Save a usual meal to the user\'s diary in the app, all items in one call (id from get_context; for another person, their meal ids from get_context with for_user, or his own). Use it when he says he ate one of his usual meals or asks to log it; never write it into a note or draft instead. scale multiplies every item\'s grams (e.g. 1.5). To change one item, log the meal and then fix that entry with update_entry, or log extra items with log_food.',
+    inputSchema: { for_user: forUser, meal_id: z.string(), date: date.optional(), meal: meal.optional(), scale: z.number().optional() },
+  }, tool('log_meal', async (args: { for_user?: string }) => {
+    const target = await resolveTarget(uid, args.for_user)
+    const r = await logSavedMeal(target, parseOr400(logMealSchema, without(args)), uid)
+    return { ...(await forOf(target)), created: r.created.map(slimEntry), day: dayTotals(r.day) }
   }))
 
   server.registerTool('save_meal', {
@@ -175,9 +188,12 @@ export function buildMcpServer(uid: string) {
   server.registerTool('get_day', {
     title: 'Get a diary day',
     description: 'Entries grouped by meal (empty meals omitted; g = grams, src = source), totals, goal and kcal left for one day (default today), and the current streak (as of today, whatever date is asked).',
-    inputSchema: { date: date.optional() },
+    inputSchema: { date: date.optional(), for_user: forUser },
     annotations: { readOnlyHint: true },
-  }, tool('get_day', async ({ date }: { date?: string }) => slimDay(await getDay(uid, date ? parseOr400(isoDate, date) : undefined))))
+  }, tool('get_day', async ({ date, for_user }: { date?: string, for_user?: string }) => {
+    const target = await resolveTarget(uid, for_user)
+    return { ...(await forOf(target)), ...slimDay(await getDay(target, date ? parseOr400(isoDate, date) : undefined)) }
+  }))
 
   server.registerTool('get_range', {
     title: 'Get totals for a date range',
@@ -192,10 +208,10 @@ export function buildMcpServer(uid: string) {
   server.registerTool('search_products', {
     title: 'Search products',
     description: 'Search the user\'s saved products ("my_products", preferred) and then Open Food Facts. Each result has origin and per-100 g values. Products from my_products have an id you can pass to log_food; for an Open Food Facts result, either pass its per100 with source "off" or save it first with upsert_product. Matching is forgiving (parts of words, any order, diacritics optional, small typos); Open Food Facts results are only products sold in Poland. Queries in Polish, English or Russian are fine; brand names help.',
-    inputSchema: { query: z.string().describe('Product name, brand or barcode') },
+    inputSchema: { query: z.string().describe('Product name, brand or barcode'), for_user: forUser.describe('Search a connected person\'s products instead of his (login or name from get_context.connections)') },
     annotations: { readOnlyHint: true },
-  }, tool('search_products', async ({ query }: { query: string }) => {
-    const r = await searchProducts(uid, query)
+  }, tool('search_products', async ({ query, for_user }: { query: string, for_user?: string }) => {
+    const r = await searchProducts(await resolveTarget(uid, for_user), query)
     return {
       results: r.results.map(x => ({ from: x.origin === 'my_products' ? 'mine' : 'off', ...(x.id ? { id: x.id } : {}), name: x.name, ...(x.brand ? { brand: x.brand } : {}), ...(x.barcode ? { barcode: x.barcode } : {}), per100: x.per100 })),
       ...(r.off_error ? { off_error: r.off_error } : {}),
@@ -222,17 +238,20 @@ export function buildMcpServer(uid: string) {
     description: 'Change grams, meal, date, name or note of an existing entry (ids come from get_day). Totals are recomputed.',
     inputSchema: {
       id: z.string(), grams: z.number().optional(), meal: meal.optional(), date: date.optional(),
-      name: z.string().optional(), note: z.string().nullable().optional(),
+      name: z.string().optional(), note: z.string().nullable().optional(), for_user: forUser,
     },
-  }, tool('update_entry', async ({ id, ...patch }: { id: string } & Record<string, unknown>) => slimEntry(await updateEntry(uid, parseOr400(z.uuid(), id), parseOr400(updateEntrySchema, patch)))))
+  }, tool('update_entry', async ({ id, for_user, ...patch }: { id: string, for_user?: string } & Record<string, unknown>) => {
+    const target = await resolveTarget(uid, for_user)
+    return slimEntry(await updateEntry(target, parseOr400(z.uuid(), id), parseOr400(updateEntrySchema, patch)))
+  }))
 
   server.registerTool('delete_entry', {
     title: 'Delete an entry',
     description: 'Delete one diary entry by id (from get_day). Returns the deleted entry and the updated day.',
-    inputSchema: { id: z.string() },
+    inputSchema: { id: z.string(), for_user: forUser },
     annotations: { destructiveHint: true },
-  }, tool('delete_entry', async ({ id }: { id: string }) => {
-    const r = await deleteEntry(uid, parseOr400(z.uuid(), id))
+  }, tool('delete_entry', async ({ id, for_user }: { id: string, for_user?: string }) => {
+    const r = await deleteEntry(await resolveTarget(uid, for_user), parseOr400(z.uuid(), id))
     return { deleted: { id: r.deleted.id, name: r.deleted.name }, day: dayTotals(r.day) }
   }))
 
@@ -299,19 +318,21 @@ export function buildMcpServer(uid: string) {
     inputSchema: {
       ml: z.number().int().min(1).max(3000).describe('Volume in ml'),
       date: date.optional(),
+      for_user: forUser,
     },
-  }, tool('log_water', async (args) => {
-    const r = await logWater(uid, parseOr400(logWaterSchema, args))
-    return { id: r.created.id, added_ml: r.created.ml, date: r.water.date, water_ml: r.water.ml, water_goal_ml: r.water.goal_ml }
+  }, tool('log_water', async (args: { for_user?: string }) => {
+    const target = await resolveTarget(uid, args.for_user)
+    const r = await logWater(target, parseOr400(logWaterSchema, without(args)), uid)
+    return { ...(await forOf(target)), id: r.created.id, added_ml: r.created.ml, date: r.water.date, water_ml: r.water.ml, water_goal_ml: r.water.goal_ml }
   }))
 
   server.registerTool('delete_water', {
     title: 'Delete water',
     description: 'Remove one water log by id (from log_water, or water_logs [id, ml] in get_day), e.g. when he says it was logged by mistake. Returns the new day total.',
-    inputSchema: { id: z.string() },
+    inputSchema: { id: z.string(), for_user: forUser },
     annotations: { destructiveHint: true },
-  }, tool('delete_water', async (args: { id: string }) => {
-    const r = await deleteWater(uid, parseOr400(z.uuid(), args.id))
+  }, tool('delete_water', async (args: { id: string, for_user?: string }) => {
+    const r = await deleteWater(await resolveTarget(uid, args.for_user), parseOr400(z.uuid(), args.id))
     return { deleted_ml: r.deleted.ml, date: r.water.date, water_ml: r.water.ml, water_goal_ml: r.water.goal_ml }
   }))
 

@@ -68,6 +68,7 @@ function publicEntry(e: Entry) {
     // which of fiber / sugar / salt are estimated by food type (not from a label or database)
     ...(x.est.length ? { extras_est: x.est } : {}),
     source: e.source, note: e.note, product_id: e.productId, logged_at: e.loggedAt,
+    ...(e.loggedBy ? { logged_by: e.loggedBy } : {}),
   }
 }
 
@@ -178,15 +179,20 @@ export async function getRange(uid: string, from: string, to: string) {
   return { from, to, goal_kcal: s.kcalGoal, logged_days: rows.length, avg_kcal_logged_days: avg, days: rows }
 }
 
-export async function logFood(uid: string, input: LogFoodInput) {
+/**
+ * `by`: a connected user logging into uid's diary (null/undefined = uid themselves). Their own product ids are
+ * accepted too: the entry then copies the product's values without linking it (products are per user).
+ */
+export async function logFood(uid: string, input: LogFoodInput, by?: string | null) {
   const s = await getSettings(uid)
   const date = input.date ?? localDate(s.timezone)
   const meal = input.meal ?? mealFromTime(s.timezone)
   const db = useDb()
 
   const ids = input.items.map(i => i.product_id).filter(Boolean) as string[]
-  // only this user's products: an id from someone else's list is "not found"
-  const products = ids.length ? await db.select().from(schema.products).where(and(eq(schema.products.userId, uid), inArray(schema.products.id, ids))) : []
+  // only this user's products (and the logging user's own): an id from anyone else's list is "not found"
+  const owners = by && by !== uid ? [uid, by] : [uid]
+  const products = ids.length ? await db.select().from(schema.products).where(and(inArray(schema.products.userId, owners), inArray(schema.products.id, ids))) : []
   const byId = new Map(products.map(p => [p.id, p]))
 
   const values = input.items.map((item, i) => {
@@ -197,9 +203,10 @@ export async function logFood(uid: string, input: LogFoodInput) {
     const source = item.source ?? prod?.source
     if (!source) throw createError({ statusCode: 400, statusMessage: `items[${i}] (${item.name}): source is required without product_id` })
     return {
-      userId: uid, date, meal, productId: prod?.id ?? null, name: item.name, grams: item.grams,
+      userId: uid, date, meal, productId: prod?.userId === uid ? prod.id : null, name: item.name, grams: item.grams,
       ...per100Cols(per100),
       source, note: item.note ?? null,
+      loggedBy: by && by !== uid ? by : null,
     }
   })
 

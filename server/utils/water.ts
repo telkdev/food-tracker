@@ -24,7 +24,7 @@ export async function waterGoal(uid: string, s: Settings) {
 export async function getWaterDay(uid: string, s: Settings, date: string) {
   const w = schema.water
   const [rows, g] = await Promise.all([
-    useDb().select({ id: w.id, ml: w.ml, logged_at: w.loggedAt }).from(w)
+    useDb().select({ id: w.id, ml: w.ml, logged_at: w.loggedAt, logged_by: w.loggedBy }).from(w)
       .where(and(eq(w.userId, uid), eq(w.date, date))).orderBy(asc(w.loggedAt)),
     waterGoal(uid, s),
   ])
@@ -37,11 +37,11 @@ export async function getWaterDay(uid: string, s: Settings, date: string) {
   }
 }
 
-export async function logWater(uid: string, input: LogWaterInput) {
+export async function logWater(uid: string, input: LogWaterInput, by?: string | null) {
   const s = await getSettings(uid)
   const date = input.date ?? localDate(s.timezone)
   if (date > localDate(s.timezone)) throw createError({ statusCode: 400, statusMessage: 'date is in the future' })
-  const [row] = await useDb().insert(schema.water).values({ userId: uid, date, ml: input.ml })
+  const [row] = await useDb().insert(schema.water).values({ userId: uid, date, ml: input.ml, loggedBy: by && by !== uid ? by : null })
     .returning({ id: schema.water.id, ml: schema.water.ml, logged_at: schema.water.loggedAt })
   return { created: row!, water: await getWaterDay(uid, s, date) }
 }
