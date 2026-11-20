@@ -13,6 +13,10 @@ const { settings } = useSettings()
 const recent = useRecent()
 const usual = useSavedMeals()
 const requestFetch = useRequestFetch()
+// whose diary: mine, or a connected person's (?for=nadia); $fetch adds the header (plugins/diary-for.client.ts)
+const diaryFor = useDiaryFor()
+const conns = useConnections()
+const forHeaders = () => (diaryFor.value ? { 'x-diary-for': diaryFor.value } : undefined)
 
 const isIso = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 const qdate = computed(() => isIso(route.query.date) ? route.query.date : undefined)
@@ -20,8 +24,8 @@ const qdate = computed(() => isIso(route.query.date) ? route.query.date : undefi
 // first paint (SSR): settings + the requested day in one round trip
 const { data: initial, error: initError, refresh: retryInit } = await useAsyncData('today-initial', async () => {
   const [s, d] = await Promise.all([
-    requestFetch<Settings>('/api/settings'),
-    requestFetch<Day>('/api/day', { query: qdate.value ? { date: qdate.value } : {} }),
+    requestFetch<Settings>('/api/settings', { headers: forHeaders() }),
+    requestFetch<Day>('/api/day', { query: qdate.value ? { date: qdate.value } : {}, headers: forHeaders() }),
   ])
   return { s, d }
 })
@@ -66,8 +70,40 @@ watch(() => day.value?.date, (d) => {
 
 function go(date: string) {
   if (date > today.value) return
-  router.replace({ query: date === today.value ? {} : { date } })
+  router.replace({ query: { ...(diaryFor.value ? { for: diaryFor.value } : {}), ...(date === today.value ? {} : { date }) } })
 }
+
+// ---------- switching between my diary and a connected person's ----------
+const forName = computed(() => (diaryFor.value ? conns.nameOf(diaryFor.value) : ''))
+function resetDiaryCaches() {
+  cache.value = {}
+  recent.items.value = []
+  recent.invalidate()
+  usual.items.value = []
+  usual.loaded.value = false
+  dayPlan.plan.value = null
+}
+async function switchDiary(id: string | null) {
+  if (id === diaryFor.value) return
+  // same date in the other diary (all users are on Europe/Warsaw)
+  await router.replace({ query: { ...(id ? { for: id } : {}), ...(qdate.value ? { date: qdate.value } : {}) } })
+}
+watch(diaryFor, async () => {
+  resetDiaryCaches()
+  day.value = null
+  loading.value = true
+  try { settings.value = await $fetch<Settings>('/api/settings') }
+  catch { /* load() shows the error */ }
+  await load(current.value)
+})
+// leaving Today while showing someone else's diary: other screens must not reuse their settings or caches
+let shownFor: string | null = diaryFor.value
+watch(diaryFor, (v) => { shownFor = v })
+onBeforeUnmount(() => {
+  if (!shownFor) return
+  resetDiaryCaches()
+  settings.value = null
+})
 const shift = (k: number) => go(addDays(current.value, k))
 
 // swipe left/right on the page to change day
@@ -250,6 +286,7 @@ async function onDelete(e: Entry) {
 
 // ---------- lifecycle ----------
 onMounted(() => {
+  conns.load()
   if (today.value) setTimeout(() => recent.load(today.value), 600)
   if (pendingPick.value) {
     initialPick.value = pendingPick.value
@@ -276,8 +313,13 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 <template>
   <div class="today" @touchstart.passive="touchStart" @touchend.passive="touchEnd">
     <header class="top">
+      <div v-if="conns.items.value.length" class="whose" role="tablist" :aria-label="t('connectionsTitle')">
+        <button type="button" role="tab" class="wchip" :class="{ on: !diaryFor }" :aria-selected="!diaryFor" @click="switchDiary(null)">{{ t('diaryMine') }}</button>
+        <button v-for="c in conns.items.value" :key="c.id" type="button" role="tab" class="wchip" :class="{ on: diaryFor === c.id }" :aria-selected="diaryFor === c.id" @click="switchDiary(c.id)">{{ c.name }}</button>
+      </div>
       <p class="eyebrow">
-        <template v-if="rel === 0"><span class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</span><span class="sep" aria-hidden="true"> · </span></template><span class="date">{{ eyebrow }}</span>
+        <template v-if="diaryFor"><span class="hello forwho">{{ t('diaryOf', { name: forName }) }}</span><span class="sep" aria-hidden="true"> · </span></template>
+        <template v-else-if="rel === 0"><span class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</span><span class="sep" aria-hidden="true"> · </span></template><span class="date">{{ eyebrow }}</span>
       </p>
       <div class="when">
         <div class="trow">
@@ -300,6 +342,8 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
       <button class="btn" @click="retryInit()">{{ t('retry') }}</button>
     </div>
     <p v-else-if="loadError" class="loaderr">{{ t('loadFailed', { msg: loadError }) }}</p>
+
+    <p v-if="diaryFor && forName" class="fornote">{{ t('diaryForNote', { name: forName }) }}</p>
 
     <template v-if="day">
       <div class="content" :class="{ stale: loading }">
@@ -383,6 +427,15 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
 /* quiet mark on 10, 20, 30, 50, 100 … days: a soft pill, nothing more */
 .streak.milestone { padding: 2px var(--s-2); margin-left: calc(-1 * var(--s-2)); border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); }
 .streak.milestone .num { color: inherit; }
+.whose { grid-column: 1 / -1; display: flex; gap: var(--s-2); overflow-x: auto; scrollbar-width: none; margin-bottom: var(--s-2); }
+.whose::-webkit-scrollbar { display: none; }
+.wchip {
+  flex: none; min-height: 32px; padding: 0 var(--s-3); border: var(--hair) solid var(--line); border-radius: var(--r-pill);
+  background: transparent; color: var(--ink-2); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+}
+.wchip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.forwho { color: var(--accent-soft-ink); font-weight: var(--fw-medium); }
+.fornote { margin: calc(-1 * var(--s-3)) 0 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--fs-sm); }
 .nav { display: flex; gap: 0; margin-right: calc(-1 * var(--s-2)); }
 .nav .icon-btn:disabled { opacity: .3; }
 

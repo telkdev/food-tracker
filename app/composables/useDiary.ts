@@ -101,5 +101,5 @@ export function useSavedMeals() {
     await $fetch(`/api/meals/${id}`, { method: 'DELETE' })
     await load(true)
   }
-  return { items, load, log, saveFromDiary, remove }
+  return { items, loaded, load, log, saveFromDiary, remove }
 }

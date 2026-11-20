@@ -92,6 +92,8 @@ export const entries = pgTable('entries', {
   salt: numeric('salt', { precision: 9, scale: 3, mode: 'number' }).generatedAlwaysAs(sql`round(grams * salt100 / 100, 3)`),
   source: entrySource('source').notNull(),
   note: text('note'),
+  // user who wrote the entry when it is not the diary's owner (a connected user); null = the owner
+  loggedBy: text('logged_by'),
   loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, t => [
@@ -159,6 +161,7 @@ export const water = pgTable('water', {
   // local date in settings.timezone, like entries.date
   date: date('date', { mode: 'string' }).notNull(),
   ml: integer('ml').notNull(),
+  loggedBy: text('logged_by'),
   loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   check('water_ml_range', sql`${t.ml} between 1 and 3000`),
@@ -300,3 +303,15 @@ export const passkeys = pgTable('passkeys', {
 
 export type User = typeof users.$inferSelect
 export type Passkey = typeof passkeys.$inferSelect
+
+/** Two users who may log food and water into each other's diary. Stored once per pair, user_a < user_b. */
+export const connections = pgTable('connections', {
+  userA: text('user_a').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userB: text('user_b').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  primaryKey({ name: 'connections_pkey', columns: [t.userA, t.userB] }),
+  check('connections_ordered', sql`${t.userA} < ${t.userB}`),
+  index('connections_user_b_idx').on(t.userB),
+])

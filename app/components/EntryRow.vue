@@ -4,6 +4,14 @@ const props = defineProps<{ entry: Entry }>()
 defineEmits<{ open: [Entry] }>()
 const { t, n } = useT()
 const approx = computed(() => props.entry.source === 'estimate')
+// written by a connected person (or by me into their diary)
+const conns = useConnections()
+const me = useUserSession().user
+const by = computed(() => {
+  const id = props.entry.logged_by
+  if (!id) return ''
+  return id === (me.value as { id?: string } | null)?.id ? t('loggedByMe') : t('loggedBy', { name: conns.nameOf(id) })
+})
 </script>
 
 <template>
@@ -13,6 +21,7 @@ const approx = computed(() => props.entry.source === 'estimate')
       <span class="meta">
         <span class="num grams">{{ n(entry.grams, 1) }} {{ t('g') }}</span>
         <SourceBadge :source="entry.source" />
+        <span v-if="by" class="by">{{ by }}</span>
         <span v-if="entry.note" class="note">{{ entry.note }}</span>
       </span>
       <MacroSplit :p="entry.p" :f="entry.f" :c="entry.c" />
@@ -34,6 +43,7 @@ const approx = computed(() => props.entry.source === 'estimate')
 .name { font-weight: var(--fw-book); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .meta { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-3); font-size: var(--fs-xs); min-width: 0; }
 .grams { white-space: nowrap; flex: none; color: var(--ink-2); }
+.by { white-space: nowrap; flex: none; color: var(--accent-soft-ink); }
 .note { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .kcal { flex: none; font-weight: var(--fw-medium); font-size: var(--fs-md); display: flex; align-items: baseline; gap: 2px; }
 .kcal small { font-size: var(--fs-2xs); font-weight: var(--fw-regular); color: var(--ink-3); margin-left: 3px; }

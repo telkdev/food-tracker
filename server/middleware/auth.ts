@@ -19,4 +19,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: 'Not logged in' })
   }
   event.context.uid = user.id
+  // Today screen showing a connected user's diary: only diary routes switch to them (see utils/connections.ts)
+  await applyDiaryFor(event, user.id, path)
 })
