@@ -30,7 +30,8 @@ const STR = {
     daily: 'По дням', date: 'Дата', est: 'На глаз',
     topKcal: 'Основные источники калорий', topP: 'Основные источники белка', food: 'Продукт', times: 'Раз', share: '% ккал', pShare: '% белка',
     weight: 'Вес', wStart: 'Начало', wEnd: 'Конец', wChange: 'Изменение', wTrend: 'Тренд', perWeek: 'кг/нед', weighIns: (n: number) => `${n} взвеш.`,
-    diary: 'Дневник питания', noData: 'За этот период нет записей.',
+    diary: 'Подробно по дням', dayTotal: 'Итого за день', onTarget: 'в цели', overT: 'перебор', underT: 'недобор', dayOf: (a: number, b: number) => `день ${a} из ${b}`, items: (n: number) => `${n} ${plural(n, 'продукт', 'продукта', 'продуктов')}`, estLegend: '≈ — вес или состав записаны на глаз',
+    noData: 'За этот период нет записей.',
     notes: 'Как считалось',
     note1: 'Средние и попадание в цели считаются только по полным дням: день, где записано меньше 40% цели по калориям, отмечен как неполный и в средние не входит.',
     note2: 'Цели — те, что стоят в приложении сейчас. Где у продукта нет клетчатки, сахаров или соли, они оценены по типу продукта (≈).',
@@ -56,7 +57,8 @@ const STR = {
     daily: 'По днях', date: 'Дата', est: 'На око',
     topKcal: 'Основні джерела калорій', topP: 'Основні джерела білка', food: 'Продукт', times: 'Разів', share: '% ккал', pShare: '% білка',
     weight: 'Вага', wStart: 'Початок', wEnd: 'Кінець', wChange: 'Зміна', wTrend: 'Тренд', perWeek: 'кг/тижд', weighIns: (n: number) => `${n} зважув.`,
-    diary: 'Щоденник харчування', noData: 'За цей період немає записів.',
+    diary: 'Детально по днях', dayTotal: 'Разом за день', onTarget: 'у цілі', overT: 'перебір', underT: 'недобір', dayOf: (a: number, b: number) => `день ${a} з ${b}`, items: (n: number) => `${n} ${plural(n, 'продукт', 'продукти', 'продуктів')}`, estLegend: '≈ — вагу чи склад записано на око',
+    noData: 'За цей період немає записів.',
     notes: 'Як рахувалося',
     note1: 'Середні та влучання в цілі рахуються лише за повними днями: день, де записано менше 40% цілі з калорій, позначено як неповний і в середні не входить.',
     note2: 'Цілі — ті, що зараз стоять у застосунку. Де в продукту немає клітковини, цукрів чи солі, їх оцінено за типом продукту (≈).',
@@ -82,7 +84,8 @@ const STR = {
     daily: 'By day', date: 'Date', est: 'Est.',
     topKcal: 'Top calorie sources', topP: 'Top protein sources', food: 'Food', times: 'Times', share: '% kcal', pShare: '% protein',
     weight: 'Weight', wStart: 'Start', wEnd: 'End', wChange: 'Change', wTrend: 'Trend', perWeek: 'kg/wk', weighIns: (n: number) => `${n} weigh-ins`,
-    diary: 'Food diary', noData: 'Nothing logged in this period.',
+    diary: 'Day by day', dayTotal: 'Day total', onTarget: 'on target', overT: 'over', underT: 'under', dayOf: (a: number, b: number) => `day ${a} of ${b}`, items: (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`, estLegend: '≈ — weight or contents estimated',
+    noData: 'Nothing logged in this period.',
     notes: 'How this is counted',
     note1: 'Averages and goal hits use complete days only: a day with less than 40% of the calorie goal logged is marked partial and left out.',
     note2: 'Goals are the ones set in the app today. Where a food has no fiber, sugars or salt, they are estimated from the food type (≈).',
@@ -402,33 +405,149 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
       y += h + 4
     }
 
-    // ---------- appendix: food diary ----------
+    // ---------- day by day: every day with its totals and every food, by meal ----------
     if (o.details) {
       doc.addPage(); y = M
       h2(s.diary)
+      if (o.entries.some(e => e.source === 'estimate' && e.date >= r.from && e.date <= r.to)) {
+        text(s.estLegend, M, y - 6, { size: 7.5, color: C.ink3 })
+        y += 10
+      }
       const byDate = new Map<string, ReportEntry[]>()
       for (const e of o.entries) {
         if (e.date < r.from || e.date > r.to) continue
         if (!byDate.has(e.date)) byDate.set(e.date, [])
         byDate.get(e.date)!.push(e)
       }
-      for (const d of r.days.filter(d => d.logged)) {
-        const rows = (byDate.get(d.date) ?? []).slice().sort((a, b) => REPORT_MEALS.indexOf(a.meal) - REPORT_MEALS.indexOf(b.meal))
-        ensure(40)
-        text(cap(dFmt(d.date, { weekday: 'long', day: 'numeric', month: 'long' })), M, y, { font: 'B', size: 10 })
-        text(`${nf(d.kcal)} ${s.kcal}  ·  ${s.p} ${nf(d.p)}  ${s.f} ${nf(d.f)}  ${s.c} ${nf(d.c)}${d.water_ml ? `  ·  ${s.water} ${litres(d.water_ml)}` : ''}`, M, y + 1, { size: 8.5, color: d.partial ? C.ink3 : C.ink2, width: W, align: 'right' })
-        y += 17
-        table<ReportEntry>([
-          { h: '', w: 62, align: 'left', get: e => rows[rows.indexOf(e) - 1]?.meal === e.meal ? '' : s[e.meal] },
-          { h: s.food, w: 220, align: 'left', get: e => e.source === 'estimate' ? `${e.name} ≈` : e.name },
-          { h: s.g, w: 40, get: e => nf(e.grams) },
-          { h: s.kcal, w: 40, get: e => nf(e.kcal) },
-          { h: s.p, w: 30, get: e => nf(e.p) },
-          { h: s.f, w: 30, get: e => nf(e.f) },
-          { h: s.c, w: 30, get: e => nf(e.c) },
-        ], rows)
-        y += 4
+      // numeric columns, right-aligned, from the right edge: grams, kcal, P, F, C
+      const numCols = [
+        { h: s.g, w: 44 }, { h: s.kcal, w: 46 }, { h: s.p, w: 38 }, { h: s.f, w: 38 }, { h: s.c, w: 38 },
+      ]
+      const numX: number[] = []
+      let rx = M + W
+      for (let i = numCols.length - 1; i >= 0; i--) { rx -= numCols[i]!.w; numX[i] = rx }
+      const nameX = M + 14
+      const nameW = numX[0]! - nameX - 8
+      const fit = (t: string, w: number, size: number, font: 'R' | 'M' | 'B' = 'R') => {
+        doc.font(font).fontSize(size)
+        if (doc.widthOfString(t) <= w) return t
+        let lo = 0, hi = t.length
+        while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (doc.widthOfString(`${t.slice(0, mid)}…`) <= w) lo = mid; else hi = mid - 1 }
+        return `${t.slice(0, lo).trimEnd()}…`
       }
+      const nums = (vals: string[], yy: number, opts: { font?: 'R' | 'M' | 'B', size?: number, color?: string, colors?: (string | undefined)[] }) => {
+        vals.forEach((v, i) => text(v, numX[i]!, yy, { font: opts.font, size: opts.size ?? 8, color: opts.colors?.[i] ?? opts.color, width: numCols[i]!.w - 4, align: 'right', lineBreak: false }))
+      }
+      const colHead = () => {
+        nums(numCols.map(c => c.h), y, { font: 'M', size: 7, color: C.ink3 })
+        y += 11
+      }
+      const macroColor = [undefined, undefined, C.protein, C.fat, C.carbs]
+      const logged = r.days.filter(d => d.logged)
+      const cardH = 82
+      const rowH = 14
+      const mealH = 18
+
+      r.days.forEach((d) => {
+        if (!d.logged) {
+          ensure(20)
+          text(cap(dFmt(d.date, { weekday: 'long', day: 'numeric', month: 'long' })), M + 12, y, { font: 'M', size: 9, color: C.ink3 })
+          text(s.notLogged, M, y, { size: 8.5, color: C.ink3, width: W - 12, align: 'right' })
+          y += 14
+          doc.moveTo(M, y).lineTo(M + W, y).lineWidth(0.4).strokeColor(C.line).stroke()
+          y += 10
+          return
+        }
+        const rows = (byDate.get(d.date) ?? []).slice().sort((a, b) => REPORT_MEALS.indexOf(a.meal) - REPORT_MEALS.indexOf(b.meal))
+        const meals = REPORT_MEALS.filter(m => rows.some(e => e.meal === m))
+        const firstMeal = rows.filter(e => e.meal === meals[0]).length
+        // the card and the start of its first meal stay on one page
+        ensure(cardH + 12 + mealH + rowH * Math.min(3, firstMeal))
+        const dayLabel = cap(dFmt(d.date, { weekday: 'long', day: 'numeric', month: 'long' }))
+
+        // --- card: date, status, meters for kcal / P / F / C, extras ---
+        const y0 = y
+        doc.roundedRect(M, y0, W, cardH, 8).fillColor(C.paper).fill()
+        doc.roundedRect(M, y0, W, cardH, 8).lineWidth(0.5).strokeColor(C.line).stroke()
+        text(dayLabel, M + 12, y0 + 10, { font: 'B', size: 12 })
+        text(`${s.dayOf(logged.indexOf(d) + 1, logged.length)}  ·  ${s.items(rows.length)}`, M + 12, y0 + 27, { size: 7.5, color: C.ink3 })
+        const status = d.partial
+          ? { t: s.partialDay, fg: C.ink2, bg: C.track }
+          : d.kcal > g.kcal * (1 + 0.1) ? { t: s.overT, fg: C.over, bg: C.overSoft }
+            : d.kcal < g.kcal * (1 - 0.1) ? { t: s.underT, fg: C.ink2, bg: C.track }
+              : { t: s.onTarget, fg: C.accent, bg: C.accentSoft }
+        doc.font('M').fontSize(8)
+        const sw = doc.widthOfString(status.t) + 16
+        doc.roundedRect(M + W - 12 - sw, y0 + 11, sw, 15, 7.5).fillColor(status.bg).fill()
+        text(status.t, M + W - 12 - sw, y0 + 14.5, { font: 'M', size: 8, color: status.fg, width: sw, align: 'center' })
+
+        const meters: { label: string, v: number, goal: number | null, unit: string, color: string, overBad: boolean }[] = [
+          { label: s.kcal, v: d.kcal, goal: g.kcal, unit: '', color: C.accent, overBad: true },
+          { label: s.protein, v: d.p, goal: g.p, unit: ` ${s.g}`, color: C.protein, overBad: false },
+          { label: s.fat, v: d.f, goal: g.f, unit: ` ${s.g}`, color: C.fat, overBad: false },
+          { label: s.carbs, v: d.c, goal: g.c, unit: ` ${s.g}`, color: C.carbs, overBad: false },
+        ]
+        const mg = 14
+        const mw = (W - 24 - mg * 3) / 4
+        meters.forEach((m, i) => {
+          const mx = M + 12 + i * (mw + mg)
+          const my = y0 + 42
+          text(m.label === s.kcal ? cap(s.kcal) : m.label, mx, my, { size: 7.5, color: C.ink2 })
+          const val = `${nf(m.v)}${m.goal ? ` / ${nf(m.goal)}` : ''}${m.unit}`
+          text(val, mx, my - 0.5, { font: 'M', size: 8, color: C.ink, width: mw, align: 'right', lineBreak: false })
+          const by = my + 12
+          doc.roundedRect(mx, by, mw, 4, 2).fillColor(C.track).fill()
+          if (m.goal) {
+            const share = m.v / m.goal
+            const over = m.overBad && share > 1.1
+            const w = Math.max(2, Math.min(1, share) * mw)
+            doc.roundedRect(mx, by, w, 4, 2).fillColor(d.partial ? C.partial : over ? C.over : m.color).fill()
+          }
+        })
+        const estOf = (k: 'fiber' | 'sugar' | 'salt') => rows.some(e => e.est?.includes(k)) ? '≈' : ''
+        const extras = [
+          d.fiber != null ? `${s.fiber} ${estOf('fiber')}${nf(d.fiber)} ${s.g}` : null,
+          d.sugar != null ? `${s.sugar} ${estOf('sugar')}${nf(d.sugar)} ${s.g}` : null,
+          d.salt != null ? `${s.salt} ${estOf('salt')}${nf(d.salt, 1)} ${s.g}` : null,
+          `${cap(s.water)} ${d.water_ml ? litres(d.water_ml) : '—'}${g.water_ml ? ` / ${litres(g.water_ml)}` : ''}`,
+          d.kcal && d.estimate_kcal ? `${s.est} ${Math.round(d.estimate_kcal / d.kcal * 100)}%` : null,
+        ].filter(Boolean) as string[]
+        text(extras.join('   ·   '), M + 12, y0 + 64, { size: 7.5, color: C.ink2, width: W - 24, lineBreak: false })
+        y = y0 + cardH + 10
+
+        // --- foods by meal ---
+        colHead()
+        for (const m of meals) {
+          const items = rows.filter(e => e.meal === m)
+          const tot = (k: 'grams' | 'kcal' | 'p' | 'f' | 'c') => items.reduce((a, e) => a + e[k], 0)
+          ensure(mealH + rowH * Math.min(2, items.length))
+          doc.circle(M + 4, y + 5.5, 2.6).fillColor(mealColors[m]).fill()
+          text(s[m], nameX, y + 1, { font: 'M', size: 9 })
+          nums([nf(tot('grams')), nf(tot('kcal')), nf(tot('p')), nf(tot('f')), nf(tot('c'))], y + 1.5, { font: 'M', size: 8, colors: macroColor })
+          y += mealH - 4
+          doc.moveTo(nameX, y).lineTo(M + W, y).lineWidth(0.5).strokeColor(C.line).stroke()
+          y += 4
+          items.forEach((e, i) => {
+            if (y + rowH > BOTTOM) {
+              doc.addPage(); y = M
+              text(`${dayLabel} · ${s[m]}`, M, y, { font: 'M', size: 8.5, color: C.ink2 })
+              y += 4
+              colHead()
+            }
+            if (i % 2) doc.rect(nameX - 4, y - 2.5, M + W - nameX + 4, rowH).fillColor(C.paper).fill()
+            const name = e.source === 'estimate' ? `${e.name.trim()} ≈` : e.name.trim()
+            text(fit(name, nameW, 8.5), nameX, y, { size: 8.5, color: C.ink, lineBreak: false })
+            nums([nf(e.grams), nf(e.kcal), nf(e.p, 1), nf(e.f, 1), nf(e.c, 1)], y + 0.5, { size: 8, color: C.ink2 })
+            y += rowH
+          })
+          y += 6
+        }
+        // day total under the meals
+        doc.moveTo(nameX, y - 2).lineTo(M + W, y - 2).lineWidth(0.7).strokeColor(C.ink3).stroke()
+        text(s.dayTotal, nameX, y + 2, { font: 'B', size: 9 })
+        nums([nf(rows.reduce((a, e) => a + e.grams, 0)), nf(d.kcal), nf(d.p), nf(d.f), nf(d.c)], y + 2.5, { font: 'B', size: 8.5, colors: macroColor })
+        y += 30
+      })
     }
   }
 
