@@ -170,6 +170,45 @@ export const water = pgTable('water', {
 
 export type Water = typeof water.$inferSelect
 
+// ---------- Hair care (tab «Волосы», only shared/hair.ts HAIR_USERS for now) ----------
+
+/** A care routine with a weekly frequency (7 = daily). Removing one archives it so reports keep its history. */
+export const hairRoutines = pgTable('hair_routines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: userId(),
+  name: text('name').notNull(),
+  perWeek: integer('per_week').notNull(),
+  durationMin: integer('duration_min'),
+  durationMax: integer('duration_max'),
+  note: text('note'),
+  sort: integer('sort').notNull().default(0),
+  // local date it was added: the plan for reports counts from here
+  createdOn: date('created_on', { mode: 'string' }).notNull(),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  ...timestamps,
+}, t => [
+  check('hair_routines_per_week', sql`${t.perWeek} between 1 and 7`),
+  check('hair_routines_duration', sql`(${t.durationMin} is null or ${t.durationMin} between 1 and 240) and (${t.durationMax} is null or ${t.durationMax} between 1 and 240)`),
+  check('hair_routines_name', sql`length(${t.name}) between 1 and 80`),
+  index('hair_routines_user_idx').on(t.userId),
+])
+
+/** One check = a routine done on a local day. Unchecking deletes the row. */
+export const hairLogs = pgTable('hair_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: userId(),
+  routineId: uuid('routine_id').notNull().references(() => hairRoutines.id, { onDelete: 'cascade' }),
+  date: date('date', { mode: 'string' }).notNull(),
+  note: text('note'),
+  loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  unique('hair_logs_routine_date').on(t.routineId, t.date),
+  index('hair_logs_user_date_idx').on(t.userId, t.date),
+])
+
+export type HairRoutine = typeof hairRoutines.$inferSelect
+export type HairLog = typeof hairLogs.$inferSelect
+
 // ---------- Memory for Claude: preferences and "my usual" meals ----------
 
 /** Free-text rules Claude must follow (how food is weighed, oil/sauce habits...). Returned by get_context. */
