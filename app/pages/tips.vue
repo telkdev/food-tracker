@@ -44,7 +44,8 @@ useHead({ title: () => `${t('tipsTitle')} · ${t('appName')}` })
 <template>
   <div class="tips">
     <header class="top">
-      <div>
+      <NuxtLink to="/week" class="icon-btn back" :aria-label="t('tabWeek')"><Icon name="back" /></NuxtLink>
+      <div class="ttl">
         <h1>{{ t('tipsTitle') }}</h1>
         <p v-if="data" class="sub">{{ t('tipsWindow', { days: data.stats.window_days, goal: t(`goal_${data.goal_type}` as MsgKey) }) }}</p>
       </div>
@@ -106,6 +107,8 @@ useHead({ title: () => `${t('tipsTitle')} · ${t('appName')}` })
 .top { padding-top: var(--s-2); min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
 .top h1 { font-size: var(--fs-2xl); font-weight: var(--fw-black); letter-spacing: -0.025em; }
 .sub { font-size: var(--fs-xs); color: var(--ink-2); }
+.back { flex: none; margin-left: -10px; }
+.ttl { flex: 1; min-width: 0; }
 .me { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 10px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-soft-ink); text-decoration: none; font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap; }
 .pad { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
 

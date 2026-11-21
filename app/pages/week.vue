@@ -79,6 +79,12 @@ useHead({ title: () => `${t('weekTitle')} · ${t('appName')}` })
         </div>
       </section>
 
+      <NuxtLink to="/tips" class="tips-link card">
+        <span class="tl-ic"><Icon name="tips" :size="20" /></span>
+        <span class="tl-tx"><strong>{{ t('tipsTitle') }}</strong><span>{{ t('tipsOpenHint') }}</span></span>
+        <Icon name="right" :size="20" class="tl-chev" />
+      </NuxtLink>
+
       <section class="chart card" :class="{ dense: Number(span) === 30, pending }" :aria-label="t('weekTitle')">
         <div class="plot">
           <div class="goal" :style="{ bottom: `${goalPct}%` }"><span class="num">{{ n(goal) }}</span></div>
@@ -118,6 +124,12 @@ useHead({ title: () => `${t('weekTitle')} · ${t('appName')}` })
 .pdf:active { background: var(--surface-2); }
 .pad { padding: var(--s-4); display: grid; gap: var(--s-3); justify-items: start; }
 
+.tips-link { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); text-decoration: none; color: var(--ink); }
+.tl-ic { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-soft-ink); }
+.tl-tx { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tl-tx strong { font-weight: var(--fw-bold); font-size: var(--fs-md); }
+.tl-tx span { font-size: var(--fs-xs); color: var(--ink-2); }
+.tl-chev { color: var(--ink-3); }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
 .stat { padding: var(--s-4); display: grid; gap: 4px; }
 .sl { font-size: var(--fs-xs); color: var(--ink-2); font-weight: var(--fw-regular); }

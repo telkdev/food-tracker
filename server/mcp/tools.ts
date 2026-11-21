@@ -391,7 +391,7 @@ export function buildMcpServer(uid: string) {
       title: 'Hair care: routines, today, report',
       description: [
         'Her hair care tracker (the «Волосы» tab): routines with how often a week (per_week 7 = daily) and duration in minutes,',
-        'which ones are done today, this week\'s progress (done/target, % of plan), streak (consecutive days with any care),',
+        'which ones are done today, today_plan (done/due today and %), care_days_total (days with any care), streak (consecutive days with any care),',
         'and a report for the last `days` days: per routine done vs planned and adherence %, days with care, checks per day.',
         'Use it when she asks what is left today, how her hair care is going, or for a report.',
       ].join(' '),
@@ -400,7 +400,7 @@ export function buildMcpServer(uid: string) {
     }, tool('get_hair_care', async ({ days }: { days?: number }) => {
       const h = await getHair(uid, days ?? 28)
       return {
-        today: h.today, week: h.week, streak: h.streak,
+        today: h.today, today_plan: h.today_plan, care_days_total: h.care_days_total, week: h.week, streak: h.streak,
         routines: h.routines.map(r => ({ id: r.id, name: r.name, per_week: r.per_week, minutes: [r.duration_min, r.duration_max].filter(x => x != null), done_today: r.done_today, this_week: r.week_done, ...(r.note ? { note: r.note } : {}) })),
         report: { from: h.report.from, to: h.report.to, care_days: h.report.care_days, checks: h.report.checks, plan_pct: h.report.pct, routines: h.report.routines.map(r => ({ name: r.name, done: r.done, planned: r.planned, pct: r.pct })) },
         days: h.report.days.filter(d => d.checks).map(d => [d.date, d.checks]),
@@ -414,7 +414,7 @@ export function buildMcpServer(uid: string) {
         'Mark hair care routines as done (or undo with done=false) for today or a past date. Call it right away when she says she did one',
         '("сделала маску", "намазала кончики маслом", "did my scalp massage"). One item per routine; matching by name is fine.',
         'Some care is split into morning and evening routines (e.g. "Сыворотка утром" / "Сыворотка вечером"): pick the one she means, or by the time of day if she doesn\'t say; a name that matches several routines fails and lists them.',
-        'If she did something that is not a routine yet, ask whether to add it with set_hair_routine. Returns the updated week progress.',
+        'If she did something that is not a routine yet, ask whether to add it with set_hair_routine. Returns today\'s plan %, days with care and what is left today. When confirming, give the day\'s % and days with care, not a weekly or plan-of-N figure.',
       ].join(' '),
       inputSchema: {
         items: z.array(z.object({ routine: routineRef, done: z.boolean().optional().describe('false = undo'), note: z.string().optional().describe('e.g. product used') })).min(1).max(20),
@@ -427,7 +427,7 @@ export function buildMcpServer(uid: string) {
         out.push(await checkRoutine(uid, parseOr400(hairCheckSchema, { routine_id: r.id, date: d, done: it.done ?? true, note: it.note })))
       }
       const h = await getHair(uid, 7)
-      return { saved: out.map(o => [o.routine.name, o.date, o.done]), week: h.week, streak: h.streak, left_today: h.routines.filter(r => !r.done_today && (r.per_week >= 7 || r.week_done < r.per_week)).map(r => r.name) }
+      return { saved: out.map(o => [o.routine.name, o.date, o.done]), today_plan: h.today_plan, care_days_total: h.care_days_total, streak: h.streak, left_today: h.routines.filter(r => !r.done_today && (r.per_week >= 7 || r.week_done < r.per_week)).map(r => r.name) }
     }))
 
     server.registerTool('set_hair_routine', {

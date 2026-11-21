@@ -2,7 +2,7 @@ import { and, asc, eq, gte, isNull, lte } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { HairRoutine } from '../db/schema'
-import { addDaysIso, hairReport, hairStreak, hasHair, weekProgress, type HairRoutineLike } from '../../shared/hair'
+import { addDaysIso, hairReport, hairStreak, hasHair, todayProgress, weekProgress, type HairRoutineLike } from '../../shared/hair'
 
 /** Hair care is per user and only for shared/hair.ts HAIR_USERS. Always the logged-in user, never x-diary-for. */
 export function requireHair(event: H3Event): string {
@@ -82,6 +82,9 @@ export async function getHair(uid: string, days = 28) {
     today,
     routines: routines.map(r => ({ ...pub(r), done_today: byId.get(r.id)!.done_today, week_done: byId.get(r.id)!.done })),
     week: { from: week.from, to: week.to, done: week.done, target: week.target, pct: week.pct },
+    // today's plan (daily + weekly routines still open this week) and all days with any care (last year)
+    today_plan: todayProgress(week),
+    care_days_total: new Set(logs.map(l => l.date)).size,
     streak: hairStreak(logs.map(l => l.date), today),
     report: hairReport(routines.map(like), active, from, today),
   }

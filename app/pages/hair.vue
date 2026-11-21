@@ -22,6 +22,8 @@ interface Hair {
   today: string
   routines: Routine[]
   week: { from: string, to: string, done: number, target: number, pct: number }
+  today_plan: { done: number, due: number, pct: number }
+  care_days_total: number
   streak: { days: number, today_done: boolean }
   report: { from: string, to: string, period_days: number, care_days: number, checks: number, pct: number | null, routines: ReportRoutine[], days: { date: string, checks: number }[] }
 }
@@ -34,7 +36,7 @@ const span = useCookie<7 | 30 | 90>('hair-span', { default: () => 30, sameSite: 
 const { data, error, refresh } = await useAsyncData('hair', () => requestFetch<Hair>('/api/hair', { query: { days: span.value } }), { watch: [span] })
 
 const mood = computed(() => {
-  const p = data.value?.week.pct ?? 0
+  const p = data.value?.today_plan.pct ?? 0
   return t((p >= 100 ? 'hairMood3' : p >= 50 ? 'hairMood2' : p > 0 ? 'hairMood1' : 'hairMood0') as MsgKey)
 })
 const freq = (k: number) => k >= 7 ? t('hairDaily') : t('hairPerWeek', { n: k })
@@ -166,16 +168,16 @@ useHead({ title: () => `${t('tabHair')} · ${t('appName')}` })
 
     <template v-else-if="data">
       <!-- this week -->
-      <section v-if="data.routines.length" class="wk card" :aria-label="t('hairWeek')">
+      <section v-if="data.routines.length" class="wk card" :aria-label="t('hairTodayPlan')">
         <div class="wk-h">
-          <h2>{{ t('hairWeek') }}</h2>
+          <h2>{{ t('hairTodayPlan') }}</h2>
           <span v-if="data.streak.days" class="streak num" :title="t('hairStreakHint')"><Icon name="flame" :size="15" />{{ t('hairStreak', { n: data.streak.days }) }}</span>
         </div>
         <p class="mood">{{ mood }}</p>
-        <div class="bar" role="meter" :aria-valuemin="0" :aria-valuemax="100" :aria-valuenow="data.week.pct" :aria-label="t('hairWeek')">
-          <i :style="{ transform: `scaleX(${Math.min(1, data.week.pct / 100)})` }" />
+        <div class="bar" role="meter" :aria-valuemin="0" :aria-valuemax="100" :aria-valuenow="data.today_plan.pct" :aria-label="t('hairTodayPlan')">
+          <i :style="{ transform: `scaleX(${Math.min(1, data.today_plan.pct / 100)})` }" />
         </div>
-        <p class="wk-of num">{{ t('hairWeekOf', { done: data.week.done, target: data.week.target, pct: data.week.pct }) }}</p>
+        <p class="wk-of num">{{ t('hairTodayPct', { pct: data.today_plan.pct }) }} · {{ t('hairCareDays', { n: data.care_days_total }) }}</p>
       </section>
 
       <!-- routines -->
@@ -222,8 +224,7 @@ useHead({ title: () => `${t('tabHair')} · ${t('appName')}` })
         </div>
         <template v-if="rep && rep.checks">
           <div class="stats">
-            <div><b class="num">{{ rep.pct != null ? `${rep.pct}%` : '—' }}</b><span>{{ t('hairReportPlan') }}</span></div>
-            <div><b class="num">{{ rep.care_days }}<small>/{{ rep.period_days }}</small></b><span>{{ t('hairReportDays') }}</span></div>
+            <div><b class="num">{{ rep.care_days }}</b><span>{{ t('hairReportDays') }}</span></div>
             <div><b class="num">{{ rep.checks }}</b><span>{{ t('hairReportChecks') }}</span></div>
           </div>
           <div class="heat" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }" aria-hidden="true">
@@ -232,8 +233,8 @@ useHead({ title: () => `${t('tabHair')} · ${t('appName')}` })
           <ul class="per">
             <li v-for="r in rep.routines" :key="r.id">
               <span class="pn">{{ r.name }}</span>
-              <span class="pv num">{{ t('hairReportOf', { done: r.done, planned: n(r.planned, r.planned % 1 ? 1 : 0) }) }}</span>
-              <span class="pb"><i :style="{ transform: `scaleX(${(r.pct ?? 0) / 100})` }" /></span>
+              <span class="pv num">{{ t('hairDaysDone', { n: r.done }) }}</span>
+              <span class="pb"><i :style="{ transform: `scaleX(${Math.min(1, r.done / rep.period_days)})` }" /></span>
             </li>
           </ul>
         </template>
@@ -328,7 +329,7 @@ h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); letter-spacing: -0.01
 .rp { padding: var(--s-4); display: grid; gap: var(--s-3); }
 .rp-h { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); flex-wrap: wrap; }
 .rp-h .seg { min-width: 220px; }
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
 .stats div { display: grid; gap: 2px; }
 .stats b { font-size: var(--fs-xl); font-weight: var(--fw-medium); letter-spacing: -0.02em; }
 .stats small { font-size: var(--fs-sm); color: var(--ink-3); font-weight: var(--fw-regular); }
