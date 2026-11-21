@@ -413,6 +413,7 @@ export function buildMcpServer(uid: string) {
       description: [
         'Mark hair care routines as done (or undo with done=false) for today or a past date. Call it right away when she says she did one',
         '("сделала маску", "намазала кончики маслом", "did my scalp massage"). One item per routine; matching by name is fine.',
+        'Some care is split into morning and evening routines (e.g. "Сыворотка утром" / "Сыворотка вечером"): pick the one she means, or by the time of day if she doesn\'t say; a name that matches several routines fails and lists them.',
         'If she did something that is not a routine yet, ask whether to add it with set_hair_routine. Returns the updated week progress.',
       ].join(' '),
       inputSchema: {

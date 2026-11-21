@@ -113,6 +113,13 @@
       "when": 1794150000000,
       "tag": "0015_hair_care",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794160000000,
+      "tag": "0016_hair_serum",
+      "breakpoints": true
     }
   ]
 }

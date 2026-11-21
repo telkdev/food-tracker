@@ -67,7 +67,9 @@ async function toggle(r: Routine) {
 
 // ---------- add / edit sheet ----------
 const FREQS = [7, 5, 3, 2, 1]
-const TEMPLATES: { key: MsgKey, per_week: number, duration_min: number, duration_max: number | null }[] = [
+// a template may add several routines at once (serum: a morning and an evening one, each daily)
+const TEMPLATES: { key: MsgKey, per_week: number, duration_min: number, duration_max: number | null, parts?: MsgKey[] }[] = [
+  { key: 'hairTpl_serum', per_week: 7, duration_min: 1, duration_max: null, parts: ['hairTpl_serumAm', 'hairTpl_serumPm'] },
   { key: 'hairTpl_oil', per_week: 7, duration_min: 1, duration_max: 2 },
   { key: 'hairTpl_massage', per_week: 3, duration_min: 5, duration_max: 10 },
   { key: 'hairTpl_hydration', per_week: 3, duration_min: 3, duration_max: 5 },
@@ -123,7 +125,10 @@ async function addTemplate(tp: typeof TEMPLATES[number]) {
   if (adding.value) return
   adding.value = tp.key
   try {
-    await $fetch('/api/hair/routines', { method: 'POST', body: { name: t(tp.key), per_week: tp.per_week, duration_min: tp.duration_min, duration_max: tp.duration_max } })
+    const have = new Set((data.value?.routines ?? []).map(r => r.name.toLowerCase()))
+    for (const name of (tp.parts ?? [tp.key]).map(k => t(k)).filter(nm => !have.has(nm.toLowerCase()))) {
+      await $fetch('/api/hair/routines', { method: 'POST', body: { name, per_week: tp.per_week, duration_min: tp.duration_min, duration_max: tp.duration_max } })
+    }
     await refresh()
   }
   catch (e) { toast.show(errMsg(e, t('somethingWrong'))) }
@@ -131,7 +136,7 @@ async function addTemplate(tp: typeof TEMPLATES[number]) {
 }
 const freeTemplates = computed(() => {
   const have = new Set((data.value?.routines ?? []).map(r => r.name.toLowerCase()))
-  return TEMPLATES.filter(tp => !have.has(t(tp.key).toLowerCase()))
+  return TEMPLATES.filter(tp => (tp.parts ?? [tp.key]).some(k => !have.has(t(k).toLowerCase())))
 })
 
 // ---------- report ----------
