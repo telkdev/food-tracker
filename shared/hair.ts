@@ -86,3 +86,13 @@ export function hairReport(routines: HairRoutineLike[], logs: HairLogLike[], fro
     days,
   }
 }
+
+/**
+ * Today's plan: daily routines, plus weekly ones whose target isn't met yet this week (or that were done today).
+ * pct = share of those done today. Shown on the tab instead of the weekly plan (Vasyl, 2026-11-21).
+ */
+export function todayProgress(week: { routines: { id: string, done: number, target: number, done_today: boolean }[] }) {
+  const due = week.routines.filter(r => r.target >= 7 || r.done_today || r.done < r.target)
+  const done = due.filter(r => r.done_today).length
+  return { done, due: due.length, pct: due.length ? Math.round(done / due.length * 100) : 0 }
+}

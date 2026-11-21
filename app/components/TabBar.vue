@@ -6,9 +6,9 @@ const route = useRoute()
 const { user } = useUserSession()
 const tabs = computed(() => [
   { to: '/', icon: 'today', label: t('tabToday'), active: route.path === '/' },
-  { to: '/week', icon: 'week', label: t('tabWeek'), active: route.path.startsWith('/week') },
+  // Tips opens from the Week screen (next to the report), so it lights up Week
+  { to: '/week', icon: 'week', label: t('tabWeek'), active: route.path.startsWith('/week') || route.path.startsWith('/tips') },
   { to: '/rating', icon: 'trophy', label: t('tabRating'), active: route.path.startsWith('/rating') },
-  { to: '/tips', icon: 'tips', label: t('tabTips'), active: route.path.startsWith('/tips') },
   // hair care: only some users for now (shared/hair.ts); the server checks too
   ...(hasHair((user.value as { id?: string } | null)?.id) ? [{ to: '/hair', icon: 'hair', label: t('tabHair'), active: route.path.startsWith('/hair') }] : []),
   { to: '/products', icon: 'products', label: t('tabProducts'), active: route.path.startsWith('/products') },

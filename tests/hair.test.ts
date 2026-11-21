@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hairReport, hairStreak, hasHair, plannedIn, weekProgress, weekStart } from '../shared/hair'
+import { hairReport, hairStreak, hasHair, plannedIn, todayProgress, weekProgress, weekStart } from '../shared/hair'
 
 const r = (id: string, per_week: number, created_on = '2026-01-01') => ({ id, name: id, per_week, created_on })
 
@@ -48,5 +48,16 @@ describe('hair care', () => {
     const rep = hairReport([r('oil', 7, '2026-11-21')], [{ routine_id: 'oil', date: '2026-11-20' }, { routine_id: 'oil', date: '2026-11-21' }], '2026-11-15', '2026-11-21')
     expect(rep.routines[0]).toMatchObject({ done: 2, planned: 2, pct: 100 })
     expect(rep.pct).toBe(100)
+  })
+})
+
+describe('today progress', () => {
+  it('counts daily routines and weekly ones still open this week', () => {
+    expect(todayProgress({ routines: [
+      { id: 'am', done: 3, target: 7, done_today: true },
+      { id: 'pm', done: 2, target: 7, done_today: false },
+      { id: 'mask', done: 1, target: 1, done_today: false }, // met this week: not due
+      { id: 'massage', done: 1, target: 3, done_today: false },
+    ] })).toEqual({ done: 1, due: 3, pct: 33 })
   })
 })
