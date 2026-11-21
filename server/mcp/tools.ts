@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { hasHair } from '../../shared/hair'
 
 // Compact output: no indentation, rounded numbers, empty fields dropped. Every char here lands in Claude's context.
 const r1 = (n: number | null | undefined) => n == null ? n : Math.round(n * 10) / 10
@@ -382,6 +383,71 @@ export function buildMcpServer(uid: string) {
       pdf_url: `${origin}/api/report.pdf?from=${r.from}&to=${r.to}&lang=ru&details=1`,
     }
   }))
+
+  // ---------- hair care: only for shared/hair.ts HAIR_USERS (others don't even see these tools) ----------
+  if (hasHair(uid)) {
+    const routineRef = z.string().describe('Routine id from get_hair_care, or its name (e.g. "scalp massage", "масло на кончики")')
+    server.registerTool('get_hair_care', {
+      title: 'Hair care: routines, today, report',
+      description: [
+        'Her hair care tracker (the «Волосы» tab): routines with how often a week (per_week 7 = daily) and duration in minutes,',
+        'which ones are done today, this week\'s progress (done/target, % of plan), streak (consecutive days with any care),',
+        'and a report for the last `days` days: per routine done vs planned and adherence %, days with care, checks per day.',
+        'Use it when she asks what is left today, how her hair care is going, or for a report.',
+      ].join(' '),
+      inputSchema: { days: z.number().int().min(7).max(365).optional().describe('Report length in days, ending today. Default 28.') },
+      annotations: { readOnlyHint: true },
+    }, tool('get_hair_care', async ({ days }: { days?: number }) => {
+      const h = await getHair(uid, days ?? 28)
+      return {
+        today: h.today, week: h.week, streak: h.streak,
+        routines: h.routines.map(r => ({ id: r.id, name: r.name, per_week: r.per_week, minutes: [r.duration_min, r.duration_max].filter(x => x != null), done_today: r.done_today, this_week: r.week_done, ...(r.note ? { note: r.note } : {}) })),
+        report: { from: h.report.from, to: h.report.to, care_days: h.report.care_days, checks: h.report.checks, plan_pct: h.report.pct, routines: h.report.routines.map(r => ({ name: r.name, done: r.done, planned: r.planned, pct: r.pct })) },
+        days: h.report.days.filter(d => d.checks).map(d => [d.date, d.checks]),
+        days_format: '[date, routines done]',
+      }
+    }))
+
+    server.registerTool('log_hair_care', {
+      title: 'Hair care: mark done',
+      description: [
+        'Mark hair care routines as done (or undo with done=false) for today or a past date. Call it right away when she says she did one',
+        '("сделала маску", "намазала кончики маслом", "did my scalp massage"). One item per routine; matching by name is fine.',
+        'If she did something that is not a routine yet, ask whether to add it with set_hair_routine. Returns the updated week progress.',
+      ].join(' '),
+      inputSchema: {
+        items: z.array(z.object({ routine: routineRef, done: z.boolean().optional().describe('false = undo'), note: z.string().optional().describe('e.g. product used') })).min(1).max(20),
+        date: date.optional(),
+      },
+    }, tool('log_hair_care', async ({ items, date: d }: { items: { routine: string, done?: boolean, note?: string }[], date?: string }) => {
+      const out = []
+      for (const it of items) {
+        const r = await findRoutine(uid, it.routine)
+        out.push(await checkRoutine(uid, parseOr400(hairCheckSchema, { routine_id: r.id, date: d, done: it.done ?? true, note: it.note })))
+      }
+      const h = await getHair(uid, 7)
+      return { saved: out.map(o => [o.routine.name, o.date, o.done]), week: h.week, streak: h.streak, left_today: h.routines.filter(r => !r.done_today && (r.per_week >= 7 || r.week_done < r.per_week)).map(r => r.name) }
+    }))
+
+    server.registerTool('set_hair_routine', {
+      title: 'Hair care: add, change or remove a routine',
+      description: 'Add a routine (no id), change one (id or name in `routine`), or remove it (remove=true; it is archived, past checks stay in reports). per_week: 7 = daily, 3 = three times a week. Duration in minutes, a range like 5–10 as duration_min/duration_max. Name it in her language.',
+      inputSchema: {
+        routine: routineRef.optional().describe('Existing routine to change or remove; omit to add a new one'),
+        name: z.string().optional(),
+        per_week: z.number().int().min(1).max(7).optional(),
+        duration_min: z.number().int().min(1).max(240).optional(),
+        duration_max: z.number().int().min(1).max(240).optional(),
+        note: z.string().optional(),
+        remove: z.boolean().optional(),
+      },
+    }, tool('set_hair_routine', async ({ routine, remove, ...rest }: { routine?: string, remove?: boolean, name?: string, per_week?: number, duration_min?: number, duration_max?: number, note?: string }) => {
+      if (!routine) return { created: await createRoutine(uid, parseOr400(hairRoutineSchema, rest)) }
+      const r = await findRoutine(uid, routine)
+      if (remove) return await archiveRoutine(uid, r.id)
+      return { updated: await updateRoutine(uid, r.id, parseOr400(hairRoutinePatchSchema, rest)) }
+    }))
+  }
 
   return server
 }
