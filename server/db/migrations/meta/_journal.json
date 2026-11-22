@@ -120,6 +120,13 @@
       "when": 1794160000000,
       "tag": "0016_hair_serum",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794170000000,
+      "tag": "0017_hair_photos",
+      "breakpoints": true
     }
   ]
 }

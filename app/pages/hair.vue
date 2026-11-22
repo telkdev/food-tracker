@@ -212,6 +212,9 @@ useHead({ title: () => `${t('tabHair')} · ${t('appName')}` })
         </div>
       </section>
 
+      <!-- progress photos -->
+      <HairPhotos :today="data.today" />
+
       <!-- report -->
       <section v-if="data.routines.length || rep?.checks" class="rp card" :aria-label="t('hairReport')">
         <div class="rp-h">
