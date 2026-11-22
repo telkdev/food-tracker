@@ -393,18 +393,21 @@ export function buildMcpServer(uid: string) {
         'Her hair care tracker (the «Волосы» tab): routines with how often a week (per_week 7 = daily) and duration in minutes,',
         'which ones are done today, today_plan (done/due today and %), care_days_total (days with any care), streak (consecutive days with any care),',
         'and a report for the last `days` days: per routine done vs planned and adherence %, days with care, checks per day.',
+        'photos = her progress photos (count and dates only; Claude cannot see them, she compares them in the tab).',
         'Use it when she asks what is left today, how her hair care is going, or for a report.',
       ].join(' '),
       inputSchema: { days: z.number().int().min(7).max(365).optional().describe('Report length in days, ending today. Default 28.') },
       annotations: { readOnlyHint: true },
     }, tool('get_hair_care', async ({ days }: { days?: number }) => {
-      const h = await getHair(uid, days ?? 28)
+      const [h, photos] = await Promise.all([getHair(uid, days ?? 28), listPhotos(uid)])
       return {
         today: h.today, today_plan: h.today_plan, care_days_total: h.care_days_total, week: h.week, streak: h.streak,
         routines: h.routines.map(r => ({ id: r.id, name: r.name, per_week: r.per_week, minutes: [r.duration_min, r.duration_max].filter(x => x != null), done_today: r.done_today, this_week: r.week_done, ...(r.note ? { note: r.note } : {}) })),
         report: { from: h.report.from, to: h.report.to, care_days: h.report.care_days, checks: h.report.checks, plan_pct: h.report.pct, routines: h.report.routines.map(r => ({ name: r.name, done: r.done, planned: r.planned, pct: r.pct })) },
         days: h.report.days.filter(d => d.checks).map(d => [d.date, d.checks]),
         days_format: '[date, routines done]',
+        // progress photos are only in the app (Claude can't see them): tell her where to compare
+        photos: { count: photos.length, dates: photos.map(p => p.taken_on) },
       }
     }))
 

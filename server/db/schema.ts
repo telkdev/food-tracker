@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
-  bigint, boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid,
+  bigint, boolean, check, customType, date, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid,
 } from 'drizzle-orm/pg-core'
 
 /**
@@ -208,6 +208,32 @@ export const hairLogs = pgTable('hair_logs', {
 
 export type HairRoutine = typeof hairRoutines.$inferSelect
 export type HairLog = typeof hairLogs.$inferSelect
+
+const bytea = customType<{ data: Buffer, driverData: Buffer }>({ dataType: () => 'bytea' })
+
+/**
+ * Progress photo for the «Волосы» tab. Stored in Postgres (Render's disk is wiped on every deploy):
+ * the browser shrinks it to a ~1600 px JPEG (~250 KB, EXIF incl. GPS dropped) plus a ~480 px thumbnail.
+ * taken_on = the day the photo shows (defaults to the day it was added; can be set back for older photos).
+ */
+export const hairPhotos = pgTable('hair_photos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: userId(),
+  takenOn: date('taken_on', { mode: 'string' }).notNull(),
+  note: text('note'),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  bytes: integer('bytes').notNull(),
+  image: bytea('image').notNull(),
+  thumb: bytea('thumb').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  check('hair_photos_size', sql`octet_length(${t.image}) <= 1048576 and octet_length(${t.thumb}) <= 131072`),
+  check('hair_photos_dims', sql`${t.width} between 1 and 4096 and ${t.height} between 1 and 4096`),
+  check('hair_photos_note', sql`${t.note} is null or length(${t.note}) <= 300`),
+  index('hair_photos_user_idx').on(t.userId, t.takenOn),
+])
+export type HairPhoto = typeof hairPhotos.$inferSelect
 
 // ---------- Memory for Claude: preferences and "my usual" meals ----------
 
