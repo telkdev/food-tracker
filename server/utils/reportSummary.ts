@@ -50,6 +50,8 @@ export interface ReportInput {
   water: { date: string, ml: number }[]
   /** weigh-ins from a bit before `from` up to `to`, oldest first */
   weights: { date: string, kg: number }[]
+  /** latest weigh-in up to the period's end, even if older than `weights` reaches */
+  currentWeight?: { date: string, kg: number } | null
 }
 
 const r0 = (n: number) => Math.round(n)
@@ -166,23 +168,29 @@ export function buildReport(input: ReportInput) {
 
   // top foods over all logged days (partial ones included: the food was eaten)
   const periodRows = [...byDate.values()].flat()
-  const groups = new Map<string, { name: string, times: number, grams: number, kcal: number, p: number, dates: Set<string> }>()
+  const groups = new Map<string, { name: string, times: number, grams: number, kcal: number, p: number, f: number, c: number, dates: Set<string> }>()
   for (const r of periodRows) {
     const k = r.key ?? `n:${r.name.trim().toLowerCase()}`
-    const g = groups.get(k) ?? { name: r.name.trim(), times: 0, grams: 0, kcal: 0, p: 0, dates: new Set<string>() }
-    g.times++; g.grams += r.grams; g.kcal += r.kcal; g.p += r.p; g.dates.add(r.date)
+    const g = groups.get(k) ?? { name: r.name.trim(), times: 0, grams: 0, kcal: 0, p: 0, f: 0, c: 0, dates: new Set<string>() }
+    g.times++; g.grams += r.grams; g.kcal += r.kcal; g.p += r.p; g.f += r.f; g.c += r.c; g.dates.add(r.date)
     groups.set(k, g)
   }
   const allKcal = sum(periodRows, r => r.kcal)
   const allP = sum(periodRows, r => r.p)
+  const allF = sum(periodRows, r => r.f)
+  const allC = sum(periodRows, r => r.c)
   const foodRow = (g: typeof groups extends Map<string, infer V> ? V : never) => ({
-    name: g.name, times: g.times, days: g.dates.size, grams: r0(g.grams), kcal: r0(g.kcal), p: r1(g.p),
+    name: g.name, times: g.times, days: g.dates.size, grams: r0(g.grams), kcal: r0(g.kcal), p: r1(g.p), f: r1(g.f), c: r1(g.c),
     kcal_share: allKcal ? r1(g.kcal / allKcal * 100) : 0,
     p_share: allP ? r1(g.p / allP * 100) : 0,
+    f_share: allF ? r1(g.f / allF * 100) : 0,
+    c_share: allC ? r1(g.c / allC * 100) : 0,
   })
   const foods = [...groups.values()]
   const topKcal = [...foods].sort((a, b) => b.kcal - a.kcal).slice(0, 10).map(foodRow)
   const topProtein = [...foods].filter(g => g.p > 0).sort((a, b) => b.p - a.p).slice(0, 7).map(foodRow)
+  const topFat = [...foods].filter(g => g.f > 0).sort((a, b) => b.f - a.f).slice(0, 7).map(foodRow)
+  const topCarbs = [...foods].filter(g => g.c > 0).sort((a, b) => b.c - a.c).slice(0, 7).map(foodRow)
 
   // weight: last weigh-in on or before each end of the period (up to 14 days before `from`)
   const ws = input.weights.filter(w => w.date <= to && w.date >= addDaysIso(input.from, -14))
@@ -217,6 +225,8 @@ export function buildReport(input: ReportInput) {
       protein_hit: proteinHit,
       avg_kcal_vs_goal: avg.kcal != null ? r0(avg.kcal - goal.kcal) : null,
       avg_p_pct: avg.p != null && goal.p ? r0(avg.p / goal.p * 100) : null,
+      avg_f_pct: avg.f != null && goal.f ? r0(avg.f / goal.f * 100) : null,
+      avg_c_pct: avg.c != null && goal.c ? r0(avg.c / goal.c * 100) : null,
     },
     extras: { fiber: extrasAvg('fiber'), sugar: extrasAvg('sugar'), salt: extrasAvg('salt') },
     water: { avg_ml: waterAvg == null ? null : r0(waterAvg), days: waterDays.length, goal_ml: goal.water_ml, hit_days: goal.water_ml ? waterDays.filter(d => d.water_ml >= goal.water_ml! * 0.9).length : null },
@@ -224,7 +234,11 @@ export function buildReport(input: ReportInput) {
     estimate_pct: totalKcal ? r0(estimateKcal / totalKcal * 100) : 0,
     top_kcal: topKcal,
     top_protein: topProtein,
+    top_fat: topFat,
+    top_carbs: topCarbs,
     weight,
+    /** the latest weigh-in on or before the period's end, however old: "current weight" */
+    current_weight: input.currentWeight ?? endW ?? null,
     days,
   }
 }

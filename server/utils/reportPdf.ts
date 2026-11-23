@@ -18,7 +18,7 @@ const STR = {
     goals: 'Цели на день', kcal: 'ккал', g: 'г', l: 'л', kg: 'кг', water: 'вода',
     p: 'Б', f: 'Ж', c: 'У', protein: 'Белок', fat: 'Жиры', carbs: 'Углеводы',
     avgKcal: 'Калории в среднем', vsGoal: (d: string) => `${d} к цели`,
-    avgP: 'Белок в среднем', ofGoal: (n: number) => `${n}% от цели`,
+    avgP: 'Белок в среднем', avgF: 'Жиры в среднем', avgC: 'Углеводы в среднем', chartF: 'Жиры по дням, г', chartC: 'Углеводы по дням, г', topF: 'Основные источники жиров', topC: 'Основные источники углеводов', fShare: '% жиров', cShare: '% углев.', weightNow: 'Вес сейчас', noWeight: 'нет взвешиваний', split: 'Б / Ж / У по энергии', ofGoal: (n: number) => `${n}% от цели`,
     kcalOn: 'Калории в коридоре ±10%', ofDays: (a: number, b: number) => `${a} из ${b} дней`, overUnder: (o: number, u: number) => `перебор ${o} · недобор ${u}`,
     pHit: 'Белок ≥ 90% цели', logged: 'Заполнено дней', partial: (n: number, none: number) => `без записей ${none} · неполных ${n}`,
     waterAvg: 'Вода в среднем', waterHint: (d: number, g: string) => `цель ${g} · дней с водой: ${d}`,
@@ -45,7 +45,7 @@ const STR = {
     goals: 'Цілі на день', kcal: 'ккал', g: 'г', l: 'л', kg: 'кг', water: 'вода',
     p: 'Б', f: 'Ж', c: 'В', protein: 'Білок', fat: 'Жири', carbs: 'Вуглеводи',
     avgKcal: 'Калорії в середньому', vsGoal: (d: string) => `${d} до цілі`,
-    avgP: 'Білок у середньому', ofGoal: (n: number) => `${n}% від цілі`,
+    avgP: 'Білок у середньому', avgF: 'Жири в середньому', avgC: 'Вуглеводи в середньому', chartF: 'Жири по днях, г', chartC: 'Вуглеводи по днях, г', topF: 'Основні джерела жирів', topC: 'Основні джерела вуглеводів', fShare: '% жирів', cShare: '% вуглев.', weightNow: 'Вага зараз', noWeight: 'немає зважувань', split: 'Б / Ж / В за енергією', ofGoal: (n: number) => `${n}% від цілі`,
     kcalOn: 'Калорії в коридорі ±10%', ofDays: (a: number, b: number) => `${a} з ${b} днів`, overUnder: (o: number, u: number) => `перебір ${o} · недобір ${u}`,
     pHit: 'Білок ≥ 90% цілі', logged: 'Заповнено днів', partial: (n: number, none: number) => `без записів ${none} · неповних ${n}`,
     waterAvg: 'Вода в середньому', waterHint: (d: number, g: string) => `ціль ${g} · днів із водою: ${d}`,
@@ -72,7 +72,7 @@ const STR = {
     goals: 'Daily goals', kcal: 'kcal', g: 'g', l: 'L', kg: 'kg', water: 'water',
     p: 'P', f: 'F', c: 'C', protein: 'Protein', fat: 'Fat', carbs: 'Carbs',
     avgKcal: 'Average calories', vsGoal: (d: string) => `${d} vs goal`,
-    avgP: 'Average protein', ofGoal: (n: number) => `${n}% of goal`,
+    avgP: 'Average protein', avgF: 'Average fat', avgC: 'Average carbs', chartF: 'Fat by day, g', chartC: 'Carbs by day, g', topF: 'Top fat sources', topC: 'Top carb sources', fShare: '% fat', cShare: '% carbs', weightNow: 'Current weight', noWeight: 'no weigh-ins', split: 'P / F / C by energy', ofGoal: (n: number) => `${n}% of goal`,
     kcalOn: 'Calories within ±10%', ofDays: (a: number, b: number) => `${a} of ${b} days`, overUnder: (o: number, u: number) => `over ${o} · under ${u}`,
     pHit: 'Protein ≥ 90% of goal', logged: 'Days logged', partial: (n: number, none: number) => `${none} not logged · ${n} partial`,
     waterAvg: 'Average water', waterHint: (d: number, g: string) => `goal ${g} · ${d} days logged`,
@@ -170,7 +170,7 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
   text(s.title, M, y, { font: 'B', size: 22 })
   text(s[`goal_${o.goalType}`], M, y + 6, { size: 9, color: C.ink2, width: W, align: 'right' })
   y += 30
-  text([o.name, periodLabel, s.days(r.period_days)].filter(Boolean).join('  ·  '), M, y, { size: 11, color: C.ink2 })
+  text([o.name, r.current_weight ? `${nf(r.current_weight.kg, 1)} ${s.kg}` : null, periodLabel, s.days(r.period_days)].filter(Boolean).join('  ·  '), M, y, { size: 11, color: C.ink2 })
   y += 20
   const g = r.goal
   const goalBits = [
@@ -191,11 +191,17 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
   }
   else {
     // ---------- KPI tiles ----------
+    const cw = r.current_weight
+    const wChange = r.weight?.change
     const tiles: { label: string, value: string, hint: string, tone?: string }[] = [
       { label: s.avgKcal, value: r.avg.kcal != null ? `${nf(r.avg.kcal)} ${s.kcal}` : '—', hint: r.adherence.avg_kcal_vs_goal != null ? s.vsGoal(signed(r.adherence.avg_kcal_vs_goal)) : '' },
       { label: s.avgP, value: r.avg.p != null ? `${nf(r.avg.p)} ${s.g}` : '—', hint: r.adherence.avg_p_pct != null ? s.ofGoal(r.adherence.avg_p_pct) : '', tone: C.protein },
+      { label: s.avgF, value: r.avg.f != null ? `${nf(r.avg.f)} ${s.g}` : '—', hint: r.adherence.avg_f_pct != null ? s.ofGoal(r.adherence.avg_f_pct) : '', tone: C.fat },
+      { label: s.avgC, value: r.avg.c != null ? `${nf(r.avg.c)} ${s.g}` : '—', hint: r.adherence.avg_c_pct != null ? s.ofGoal(r.adherence.avg_c_pct) : '', tone: C.carbs },
       { label: s.kcalOn, value: `${r.adherence.kcal_on_target} / ${r.full_days}`, hint: s.overUnder(r.adherence.kcal_over, r.adherence.kcal_under) },
       { label: s.pHit, value: r.adherence.protein_hit != null ? `${r.adherence.protein_hit} / ${r.full_days}` : '—', hint: g.p ? `${s.goalLine} ${nf(g.p)} ${s.g}` : '', tone: C.protein },
+      { label: s.weightNow, value: cw ? `${nf(cw.kg, 1)} ${s.kg}` : '—', hint: cw ? [dayShort(cw.date), wChange != null ? `${wChange > 0 ? '+' : wChange < 0 ? '−' : '±'}${nf(Math.abs(wChange), 1)} ${s.kg}` : null].filter(Boolean).join(' · ') : s.noWeight },
+      { label: s.split, value: r.energy_pct ? `${r.energy_pct.p} / ${r.energy_pct.f} / ${r.energy_pct.c}%` : '—', hint: s.energy },
       { label: s.logged, value: `${r.full_days} / ${r.period_days}`, hint: s.partial(r.partial_days, r.period_days - r.logged_days) },
       { label: s.waterAvg, value: litres(r.water.avg_ml), hint: s.waterHint(r.water.days, litres(r.water.goal_ml)), tone: C.water },
       { label: `${s.fiber} / ${s.sugar} / ${s.salt}`, value: `${nf(r.extras.fiber.g)} / ${nf(r.extras.sugar.g)} / ${nf(r.extras.salt.g, 1)} ${s.g}`, hint: s.known(Math.round(Math.min(r.extras.fiber.coverage, r.extras.sugar.coverage, r.extras.salt.coverage) * 100)) },
@@ -214,11 +220,11 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
       text(t.value, x + 9, ty + 22, { font: 'B', size: 13, color: t.tone ?? C.ink, width: tw - 18 })
       text(t.hint, x + 9, ty + 41, { size: 7, color: C.ink3, width: tw - 18 })
     })
-    y += 2 * th + gap + 18
+    y += Math.ceil(tiles.length / cols) * (th + gap) + 10
 
     // ---------- bar charts ----------
-    const barChart = (title: string, vals: { date: string, v: number, logged: boolean, partial: boolean }[], goalV: number | null, color: string, colorSoft: string, overIsBad: boolean) => {
-      const ch = 120
+    // mode: 'cap' = over the goal is bad (kcal), 'floor' = reaching it is good (protein), 'band' = within ±10 % is good (fat, carbs)
+    const barChart = (title: string, vals: { date: string, v: number, logged: boolean, partial: boolean }[], goalV: number | null, color: string, colorSoft: string, mode: 'cap' | 'floor' | 'band', ch = 120) => {
       ensure(ch + 50)
       text(title, M, y, { font: 'M', size: 10 })
       y += 18
@@ -236,8 +242,9 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
           return
         }
         const h = Math.max(1.5, d.v / max * ch)
-        const over = goalV != null && overIsBad && d.v > goalV * 1.1
-        const fill = d.partial ? C.partial : over ? C.over : (goalV != null && !overIsBad && d.v >= goalV * 0.9) ? color : colorSoft
+        const over = goalV != null && mode !== 'floor' && d.v > goalV * 1.1
+        const good = goalV != null && (mode === 'floor' ? d.v >= goalV * 0.9 : mode === 'band' && d.v >= goalV * 0.9)
+        const fill = d.partial ? C.partial : over ? C.over : good ? color : colorSoft
         doc.roundedRect(x, top + ch - h, bw, h, Math.min(2, bw / 3)).fillColor(fill).fill()
         if (n <= 16) text(nf(d.v), x - 10, top + ch - h - 10, { size: 6.5, color: C.ink3, width: bw + 20, align: 'center' })
       })
@@ -259,8 +266,8 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
       })
       y = top + ch + 16
     }
-    const series = (k: 'kcal' | 'p') => r.days.map(d => ({ date: d.date, v: d[k], logged: d.logged, partial: d.partial }))
-    barChart(`${s.chartKcal}, ${s.kcal}`, series('kcal'), g.kcal, C.accent, C.accentSoft, true)
+    const series = (k: 'kcal' | 'p' | 'f' | 'c') => r.days.map(d => ({ date: d.date, v: d[k], logged: d.logged, partial: d.partial }))
+    barChart(`${s.chartKcal}, ${s.kcal}`, series('kcal'), g.kcal, C.accent, C.accentSoft, 'cap')
     // legend
     const legend = [[C.accentSoft, s.chartKcal], [C.over, s.overDay], [C.partial, s.partialDay]] as const
     let lx = M
@@ -270,7 +277,9 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
       lx += 20 + doc.font('R').fontSize(7).widthOfString(lbl)
     }
     y += 18
-    barChart(s.chartP, series('p'), g.p, C.protein, '#dcc0d0', false)
+    barChart(s.chartP, series('p'), g.p, C.protein, '#dcc0d0', 'floor', 90)
+    barChart(s.chartF, series('f'), g.f, C.fat, '#e6d8b5', 'band', 90)
+    barChart(s.chartC, series('c'), g.c, C.carbs, '#c9d9e8', 'band', 90)
     y += 8
 
     // ---------- energy split + meal split ----------
@@ -336,7 +345,6 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
       y += 6
     }
 
-    doc.addPage(); y = M
     h2(s.daily)
     const dayCols: (Col & { color?: (d: Report['days'][number]) => string | undefined })[] = [
       { h: s.date, w: 70, align: 'left', get: d => dayShort(d.date) },
@@ -375,6 +383,24 @@ export function renderReportPdf(r: Report, o: RenderOptions): Promise<Buffer> {
       { h: s.pShare, w: 46, get: f => `${nf(f.p_share, 1)}%` },
       { h: s.kcal, w: 44, get: f => nf(f.kcal) },
     ], r.top_protein)
+    h2(s.topF)
+    table<Food>([
+      { h: s.food, w: 210, align: 'left', get: f => f.name },
+      { h: s.times, w: 40, get: f => nf(f.times) },
+      { h: s.g, w: 50, get: f => nf(f.grams) },
+      { h: `${s.f}, ${s.g}`, w: 50, get: f => nf(f.f) },
+      { h: s.fShare, w: 46, get: f => `${nf(f.f_share, 1)}%` },
+      { h: s.kcal, w: 44, get: f => nf(f.kcal) },
+    ], r.top_fat)
+    h2(s.topC)
+    table<Food>([
+      { h: s.food, w: 210, align: 'left', get: f => f.name },
+      { h: s.times, w: 40, get: f => nf(f.times) },
+      { h: s.g, w: 50, get: f => nf(f.grams) },
+      { h: `${s.c}, ${s.g}`, w: 50, get: f => nf(f.c) },
+      { h: s.cShare, w: 46, get: f => `${nf(f.c_share, 1)}%` },
+      { h: s.kcal, w: 44, get: f => nf(f.kcal) },
+    ], r.top_carbs)
 
     // ---------- weight ----------
     if (r.weight) {

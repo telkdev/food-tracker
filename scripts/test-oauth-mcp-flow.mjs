@@ -71,7 +71,7 @@ ok(r.status === 400, 'code reuse rejected')
 const mcp = new Client({ name: 'flow-test', version: '1' })
 await mcp.connect(new StreamableHTTPClientTransport(new URL(`${B}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${t1.access_token}` } } }))
 const tools = (await mcp.listTools()).tools.map(t => t.name)
-ok(tools.length === 20 && tools.includes('suggest_day_plan') && tools.includes('log_water') && tools.includes('get_report'), `tools: ${tools.join(', ')}`)
+ok(tools.length === 21 && tools.includes('log_weight') && tools.includes('suggest_day_plan') && tools.includes('log_water') && tools.includes('get_report'), `tools: ${tools.join(', ')}`)
 const call = async (name, args) => { const res = await mcp.callTool({ name, arguments: args }); return { err: res.isError, data: res.isError ? res.content[0].text : JSON.parse(res.content[0].text) } }
 let res = await call('get_report', { from: '2026-11-01', to: '2026-11-07' })
 ok(!res.err && res.data.period_days === 7 && res.data.pdf_url.includes('/api/report.pdf?from=2026-11-01'), `get_report: ${res.data.logged_days} days logged, avg ${res.data.avg?.kcal} kcal`)
