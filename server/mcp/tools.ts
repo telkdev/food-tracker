@@ -339,6 +339,15 @@ export function buildMcpServer(uid: string) {
     return { deleted_ml: r.deleted.ml, date: r.water.date, water_ml: r.water.ml, water_goal_ml: r.water.goal_ml }
   }))
 
+  server.registerTool('log_weight', {
+    title: 'Log weight',
+    description: 'Save a weigh-in in kg (default today, Europe/Warsaw). One per day: a second one the same day replaces it. Used by the water goal, the profile targets and the coach report ("current weight"). Confirm briefly, e.g. "Записал вес 94 кг".',
+    inputSchema: { kg: z.number().min(30).max(300).describe('Body weight in kg, e.g. 93.8'), date: date.optional() },
+  }, tool('log_weight', async (args: { kg: number, date?: string }) => {
+    const { kg, date: d } = parseOr400(weightSchema, args)
+    return setWeight(uid, kg, d)
+  }))
+
   server.registerTool('set_goals', {
     title: 'Set goals',
     description: 'Set the daily kcal goal and optional protein/fat/carbs goals in grams, and the daily water goal in ml. Pass null to clear a macro goal; water_goal_ml null goes back to the goal suggested from his weight and activity.',
@@ -353,8 +362,8 @@ export function buildMcpServer(uid: string) {
     title: 'Coach report for a period',
     description: [
       'Summary for a period (a week, a month, any range up to a year) as a coach would read it: averages over complete days',
-      '(days under 40% of the kcal goal are partial and left out), goals, days within ±10% kcal, days with protein ≥ 90% of goal,',
-      'macro energy split, meal split, fiber/sugar/salt (unknown values estimated by food type; coverage = share of kcal with real values), water, top foods by kcal and by protein,',
+      '(days under 40% of the kcal goal are partial and left out), goals, days within ±10% kcal, days with protein ≥ 90% of goal, average fat and carbs vs goals, current weight,',
+      'macro energy split, meal split, fiber/sugar/salt (unknown values estimated by food type; coverage = share of kcal with real values), water, top foods by kcal, protein, fat and carbs,',
       'weight change, and per-day totals. pdf_url downloads the same report as a PDF in a browser where he is logged in to the app;',
       'in the app it is Week → "PDF-отчёт", which can share it straight to Telegram. Use this when he asks for a report or a summary for his coach.',
     ].join(' '),
@@ -376,7 +385,10 @@ export function buildMcpServer(uid: string) {
       meal_share_pct: r.meal_share, estimate_pct: r.estimate_pct,
       top_kcal: r.top_kcal.map(x => [x.name, x.times, x.grams, x.kcal, x.kcal_share, x.p]),
       top_protein: r.top_protein.map(x => [x.name, x.times, x.grams, x.p, x.p_share]),
-      top_format: { top_kcal: '[name, times, grams, kcal, % of kcal, protein g]', top_protein: '[name, times, grams, protein g, % of protein]' },
+      top_fat: r.top_fat.map(x => [x.name, x.times, x.grams, x.f, x.f_share]),
+      top_carbs: r.top_carbs.map(x => [x.name, x.times, x.grams, x.c, x.c_share]),
+      top_format: { top_kcal: '[name, times, grams, kcal, % of kcal, protein g]', top_protein: '[name, times, grams, protein g, % of protein]', top_fat: '[name, times, grams, fat g, % of fat]', top_carbs: '[name, times, grams, carbs g, % of carbs]' },
+      current_weight: r.current_weight,
       ...(r.weight ? { weight: { start: r.weight.start, end: r.weight.end, change_kg: r.weight.change, per_week_kg: r.weight.per_week, weigh_ins: r.weight.weigh_ins } } : {}),
       days: r.days.filter(d => d.logged).map(d => [d.date, d.kcal, d.p, d.f, d.c, d.water_ml, d.partial ? 1 : 0]),
       days_format: '[date, kcal, p, f, c, water ml, partial]',

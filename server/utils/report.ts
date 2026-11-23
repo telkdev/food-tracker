@@ -1,4 +1,4 @@
-import { and, asc, between, eq } from 'drizzle-orm'
+import { and, asc, between, desc, eq, lte } from 'drizzle-orm'
 import { z } from 'zod'
 import { recommendTargets } from '../../shared/targets'
 import { addDaysIso, buildReport, type ReportEntry, type ReportMeal } from './reportSummary'
@@ -41,7 +41,9 @@ export async function getReport(uid: string, from: string, to: string) {
       fiber: x.fiber, sugar: x.sugar, salt: x.salt, est: x.est, source: r.source,
     }
   })
-  const lastKg = weights.at(-1)?.kg ?? (await getWeights(uid, today, 120)).at(-1)?.kg ?? null
+  // current weight: last weigh-in up to the period's end, looked up a year back if the period has none
+  const lastW = weights.at(-1) ?? (await db.select({ date: wt.date, kg: wt.kg }).from(wt).where(and(eq(wt.userId, uid), lte(wt.date, end))).orderBy(desc(wt.date)).limit(1))[0] ?? null
+  const lastKg = lastW?.kg ?? (await getWeights(uid, today, 120)).at(-1)?.kg ?? null
   const targets = recommendTargets(profileOf(s), lastKg, today)
   const report = buildReport({
     from, to, today,
@@ -49,6 +51,7 @@ export async function getReport(uid: string, from: string, to: string) {
     suggested: targets ? { p: targets.p, f: targets.f, c: targets.c } : null,
     waterGoalMl: waterGoalInfo.goal_ml,
     entries, water, weights,
+    currentWeight: lastW,
   })
   return {
     report,
