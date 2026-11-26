@@ -1,0 +1,33 @@
+/* New Year theme: on when <html data-theme="newyear"> (Settings → Оформление). Brand colours stay;
+   decoration lives in components/holiday (garland, 3D snow) and in the few touches below. */
+
+:root[data-theme='newyear'] {
+  --ny-shine: #b8862b;
+  --ny-cap-shadow: rgba(50, 75, 100, .35);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='newyear'] {
+    --ny-shine: #f3d98a;
+    --ny-cap-shadow: rgba(200, 225, 255, .25);
+    --ny-cap-opacity: .88;
+  }
+}
+
+/* snow cap on the main calorie card */
+[data-theme='newyear'] .today .hero.card { position: relative; }
+[data-theme='newyear'] .today .hero.card::before {
+  content: ''; position: absolute; left: -1px; right: -1px; top: -6px; height: 17px; pointer-events: none; z-index: 1;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 22' preserveAspectRatio='none'><path d='M0 22 L0 9 Q0 0 14 0 L386 0 Q400 0 400 9 L400 12 Q392 12 388 16 Q380 22 372 15 Q360 10 340 13 Q318 18 300 12 Q285 8 270 13 Q250 20 232 12 Q214 6 196 14 Q180 20 164 12 Q150 7 132 12 Q112 18 96 11 Q80 6 64 13 Q50 19 36 12 Q22 7 12 13 Q4 17 0 22 Z' fill='white'/></svg>") center / 100% 100% no-repeat;
+  filter: drop-shadow(0 1px 1.5px var(--ny-cap-shadow)); opacity: var(--ny-cap-opacity, 1);
+}
+
+/* page title shimmers with a slow golden glint */
+[data-theme='newyear'] .today h1 {
+  background: linear-gradient(100deg, var(--ink) 0 38%, var(--ny-shine) 48%, #fff8 50%, var(--ny-shine) 52%, var(--ink) 62% 100%);
+  background-size: 300% 100%; background-position: 100% 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: ny-glint 7s ease-in-out infinite;
+}
+@keyframes ny-glint { 0%, 55% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+[data-theme='newyear'] .today .streak .num::before { content: '🎄 '; }

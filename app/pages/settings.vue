@@ -75,6 +75,9 @@ async function saveCarry() {
   catch (e) { scErr.value = errMsg(e, t('somethingWrong')) }
 }
 
+const themePref = useThemePref()
+const snowPref = useSnowPref()
+
 function setLang(p: LangPref) {
   langPref.value = p
   locale.value = resolveLocale(p, navigator.language)
@@ -257,6 +260,21 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
       <button type="button" class="btn btn-block" @click="logoutOthers">{{ t('logoutOthers') }}</button>
       <NuxtLink v-if="account?.isAdmin" to="/users" class="btn btn-block plain">{{ t('usersTitle') }}</NuxtLink>
       <p v-if="signErr" class="err" role="alert">{{ signErr }}</p>
+    </section>
+
+    <section class="card group">
+      <h2 class="section-title">{{ t('appearance') }}</h2>
+      <div class="seg" role="group" :aria-label="t('appearance')">
+        <button type="button" :aria-pressed="themePref === 'classic'" @click="themePref = 'classic'">{{ t('themeClassic') }}</button>
+        <button type="button" :aria-pressed="themePref === 'newyear'" @click="themePref = 'newyear'">🎄 {{ t('themeNewYear') }}</button>
+      </div>
+      <template v-if="themePref === 'newyear'">
+        <div class="line">
+          <span id="snow-label" class="ll">{{ t('snowLabel') }}</span>
+          <button type="button" role="switch" class="switch" :aria-checked="snowPref === 'on'" aria-labelledby="snow-label" @click="snowPref = snowPref === 'on' ? 'off' : 'on'"><span /></button>
+        </div>
+        <p class="hint">{{ t('snowHint') }}</p>
+      </template>
     </section>
 
     <section class="card group">

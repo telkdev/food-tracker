@@ -310,6 +310,15 @@ onMounted(() => {
 })
 
 useHead({ title: () => `${title.value} · ${t('appName')}` })
+
+// New Year theme: festive greeting until New Year and in the first two weeks of January
+const newYear = useNewYear()
+const greeting = computed(() => {
+  const name = settings.value?.name
+  const hol = newYear.value ? holidayGreeting() : null
+  if (hol) return `${name ? t(hol === 'eve' ? 'nyEveName' : 'nyNewName', { name }) : t(hol === 'eve' ? 'nyEve' : 'nyNew')} 🎄`
+  return `${name ? t('helloName', { name }) : t('hello')} 👋`
+})
 </script>
 
 <template>
@@ -317,7 +326,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
     <header class="top">
       <p class="eyebrow">
         <template v-if="diaryFor"><span class="hello forwho">{{ t('diaryOf', { name: forName }) }}</span><span class="sep" aria-hidden="true"> · </span></template>
-        <template v-else-if="rel === 0"><span class="hello">{{ settings?.name ? t('helloName', { name: settings.name }) : t('hello') }} 👋</span><span class="sep" aria-hidden="true"> · </span></template><span class="date">{{ eyebrow }}</span>
+        <template v-else-if="rel === 0"><span class="hello">{{ greeting }}</span><span class="sep" aria-hidden="true"> · </span></template><span class="date">{{ eyebrow }}</span>
       </p>
       <div class="when">
         <div class="trow">
@@ -356,7 +365,7 @@ useHead({ title: () => `${title.value} · ${t('appName')}` })
       <div class="content" :class="{ stale: loading }">
         <section class="hero card" :aria-label="t('kcalLeft')">
           <div class="hero-top">
-            <ProgressRing :value="eaten" :max="goal" :size="156" :stroke="7" :label="`${n(eaten)} / ${n(goal)} ${t('kcal')}`">
+            <ProgressRing data-snow-clear :value="eaten" :max="goal" :size="156" :stroke="7" :label="`${n(eaten)} / ${n(goal)} ${t('kcal')}`">
               <span class="big num" :class="{ over }" :style="{ fontSize: bigSize }"><span v-if="anyEstimate" class="approx">≈</span>{{ n(Math.abs(remaining)) }}</span>
               <span class="biglbl">{{ over ? t('kcalOver') : t('kcalLeft') }}</span>
             </ProgressRing>
