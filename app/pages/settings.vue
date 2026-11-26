@@ -76,6 +76,7 @@ async function saveCarry() {
 }
 
 const themePref = useThemePref()
+const theme = useTheme()
 const snowPref = useSnowPref()
 
 function setLang(p: LangPref) {
@@ -265,10 +266,10 @@ useHead({ title: () => `${t('settingsTitle')} · ${t('appName')}` })
     <section class="card group">
       <h2 class="section-title">{{ t('appearance') }}</h2>
       <div class="seg" role="group" :aria-label="t('appearance')">
-        <button type="button" :aria-pressed="themePref === 'classic'" @click="themePref = 'classic'">{{ t('themeClassic') }}</button>
-        <button type="button" :aria-pressed="themePref === 'newyear'" @click="themePref = 'newyear'">🎄 {{ t('themeNewYear') }}</button>
+        <button type="button" :aria-pressed="theme === 'classic'" @click="themePref = 'classic'">{{ t('themeClassic') }}</button>
+        <button type="button" :aria-pressed="theme === 'newyear'" @click="themePref = 'newyear'">🎄 {{ t('themeNewYear') }}</button>
       </div>
-      <template v-if="themePref === 'newyear'">
+      <template v-if="theme === 'newyear'">
         <div class="line">
           <span id="snow-label" class="ll">{{ t('snowLabel') }}</span>
           <button type="button" role="switch" class="switch" :aria-checked="snowPref === 'on'" aria-labelledby="snow-label" @click="snowPref = snowPref === 'on' ? 'off' : 'on'"><span /></button>
