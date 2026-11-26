@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// A string of lights across the top of the page. Pure SVG + CSS: the bulbs twinkle slowly,
-// glow only in the dark theme, and stay still when the system asks for reduced motion.
+// A string of lights across the top of the page. Pure SVG + CSS: each bulb flows through the colours
+// with a delay by position, so a rainbow wave runs along the wire; bulbs also twinkle, glow in the
+// dark theme, and stay still when the system asks for reduced motion.
 const el = ref<HTMLElement | null>(null)
 const width = ref(360)
 const H = 34
@@ -32,7 +33,7 @@ const bulbs = computed(() => {
       const x = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t * t * x1
       const y = (1 - t) ** 2 * 3 + 2 * (1 - t) * t * 27 + t * t * 3
       const n = i * perSag + k
-      out.push({ x, y, c: COLORS[n % COLORS.length], delay: `${((n * 0.37) % 2.4).toFixed(2)}s` })
+      out.push({ x, y, c: COLORS[n % COLORS.length], delay: `${((n * 0.37) % 2.4).toFixed(2)}s`, hue: `${(-(n * 0.45)).toFixed(2)}s` })
     }
   }
   return out
@@ -45,7 +46,7 @@ const bulbs = computed(() => {
       <path :d="path" class="wire" />
       <g v-for="(b, i) in bulbs" :key="i" :transform="`translate(${b.x.toFixed(1)} ${(b.y + 1).toFixed(1)})`" class="bulb" :style="{ '--c': b.c, animationDelay: b.delay }">
         <rect x="-2.2" y="-1" width="4.4" height="3.5" rx="1" class="cap" />
-        <ellipse cx="0" cy="7.5" rx="3.8" ry="5.4" class="glass" />
+        <ellipse cx="0" cy="7.5" rx="3.8" ry="5.4" class="glass" :style="{ animationDelay: b.hue }" />
         <ellipse cx="-1.2" cy="5.6" rx="1" ry="1.8" fill="#fff" opacity=".55" />
       </g>
     </svg>
@@ -57,12 +58,21 @@ const bulbs = computed(() => {
 svg { display: block; overflow: visible; }
 .wire { fill: none; stroke: #4a4337; stroke-width: 1.2; opacity: .7; }
 .cap { fill: #6d665a; }
-.glass { fill: var(--c); }
+.glass { color: var(--c); fill: currentColor; animation: flow 7.2s linear infinite; }
+/* colours flow around the palette; the per-bulb negative delay turns it into a running wave */
+@keyframes flow {
+  0%, 100% { color: #e0483f; }
+  16% { color: #f0a63a; }
+  33% { color: #f2d55a; }
+  50% { color: #45a066; }
+  66% { color: #4b8fd6; }
+  83% { color: #c95bd0; }
+}
 .bulb { animation: twinkle 3.2s ease-in-out infinite; }
 @keyframes twinkle { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 @media (prefers-color-scheme: dark) {
   .wire { stroke: #6b6558; }
-  .glass { filter: drop-shadow(0 0 4px var(--c)) drop-shadow(0 0 9px var(--c)); }
+  .glass { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 9px currentColor); }
 }
-@media (prefers-reduced-motion: reduce) { .bulb { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .bulb, .glass { animation: none; } }
 </style>
