@@ -1,4 +1,4 @@
 export default defineNuxtPlugin(() => {
-  const pref = useThemePref()
-  useHead({ htmlAttrs: { 'data-theme': () => (pref.value === 'newyear' ? 'newyear' : undefined) } })
+  const newYear = useNewYear()
+  useHead({ htmlAttrs: { 'data-theme': () => (newYear.value ? 'newyear' : undefined) } })
 })
