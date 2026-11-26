@@ -1,8 +1,15 @@
+<script setup lang="ts">
+const newYear = useNewYear()
+const snow = useSnowPref()
+</script>
+
 <template>
   <div class="shell">
     <main class="page">
+      <HolidayGarland v-if="newYear" />
       <slot />
     </main>
+    <ClientOnly><HolidaySnow3D v-if="newYear && snow === 'on'" /></ClientOnly>
     <TabBar />
   </div>
 </template>

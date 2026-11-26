@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['nuxt-auth-utils'],
   auth: { webAuthn: true },
-  css: ['@fontsource-variable/onest', '~/assets/css/tokens.css', '~/assets/css/base.css'],
+  css: ['@fontsource-variable/onest', '~/assets/css/tokens.css', '~/assets/css/base.css', '~/assets/css/newyear.css'],
   runtimeConfig: {
     // Login sessions: h3 never expires them on its own; the 180-day idle limit and session_version
     // (server/utils/authSession.ts) decide. The browser keeps the cookie up to ~400 days from the last refresh.
